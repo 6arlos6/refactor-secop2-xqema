@@ -39,6 +39,9 @@ class InformacionGeneralPage(BasePage):
     # NO usar btnSaveProcedureTop ("Guardar") porque solo guarda sin avanzar.
     BTN_SIGUIENTE_PASO    = "tbToolBarPlaceHolder_btnNextStepButton"
 
+    # Guardar paso:
+    BTN_GUARDAR_PASO    = "tbToolBarPlaceHolder_btnSaveProcedureTop"
+
     # === SELECTORES CONTRATO MARCO ===
     RADIO_RELACION_OTROS_SI = "rdbgRelatedToAnotherDossierP2Gen_0"
     LINK_AGREGAR_PROCESOS   = "lnkAddRelatedDossiers"
@@ -201,16 +204,28 @@ class InformacionGeneralPage(BasePage):
             return
 
         # 3. Limpiar y disparar el autocomplete con send_keys
+        #    Usamos find_element().send_keys() directo (sin sb.click para enfocar)
+        #    porque el blockUI overlay puede interceptar clicks nativos.
+        print(f"  Llenando UNSPSC: {codigo}...")
         self.sb.wait_for_element_visible(f"#{self.INPUT_UNSPSC_ID}", timeout=DEFAULT_TIMEOUT)
-        self.sb.click(f"#{self.INPUT_UNSPSC_ID}")
-        self.driver.find_element("id", self.INPUT_UNSPSC_ID).clear()
-        self.sb.send_keys(f"#{self.INPUT_UNSPSC_ID}", codigo)
+        campo = self.driver.find_element("id", self.INPUT_UNSPSC_ID)
+        campo.clear()
+        campo.send_keys(codigo)
 
         # 4. XPath acotado al dropdown ac_results (no al texto ya visible en pagina)
+        #    CRITICO: sb.click() falla por el <div class="blockUI blockOverlay"> que cubre
+        #    el viewport con z-index:1000 y opacity:0 (invisible pero intercepta clicks).
+        #    El original usa ActionChains → equivalente a js_click.
+        #    Solucion: eliminar overlay via JS + js_click.
         xpath_resultado = f"//div[contains(@class,'ac_results')]//span[contains(text(), '{codigo}')]"
         try:
             self.sb.wait_for_element_visible(xpath_resultado, timeout=15)
-            self.sb.click(xpath_resultado)
+            # Eliminar overlays blockUI que interceptan el click
+            self.sb.execute_script("""
+                document.querySelectorAll('.blockUI').forEach(function(el) { el.remove(); });
+            """)
+            self.sb.js_click(xpath_resultado)
+            print(f"  UNSPSC seleccionado: {codigo}")
         except Exception:
             raise Exception("El código es incorrecto o no existe")
 
@@ -244,7 +259,7 @@ class InformacionGeneralPage(BasePage):
         """
         print("Configurando proveedor adjudicado...")
 
-        self.esperar_y_click_por_id(self.RADIO_PUBLICIDAD_SI)
+        self.esperar_y_click_js(self.RADIO_PUBLICIDAD_SI)
 
         # --- Autocomplete proveedor (XPath exacto del original funciones.py:228) ---
         try:
@@ -408,17 +423,79 @@ class InformacionGeneralPage(BasePage):
             raise Exception(f"Error al crear/seleccionar el contratista: {str(e)}")
 
     def _seleccionar_tipo_contrato(self, tipo_contrato_normalizado):
-        """Lineas 318-322: Selecciona tipo de contrato y justificacion."""
-        self.seleccionar_dropdown(self.SELECT_TIPO_CONTRATO,              tipo_contrato_normalizado)
-        self.seleccionar_dropdown("selJustificationTypeOfContractSelected", "Regla aplicable")
+        """
+        Lineas 318-322: Selecciona tipo de contrato y justificacion.
+
+        CRITICO — Por que se necesita scroll:
+          El dropdown selTypeOfContractSelect esta debajo del bloque del proveedor
+          en el formulario. Despues de seleccionar proveedor via autocomplete, el
+          viewport queda arriba. El original usa driver.find_element() directo
+          (no requiere visibilidad), pero seleccionar_dropdown usa
+          wait_for_element_visible que falla si el elemento esta off-screen.
+
+        Solucion: scroll al dropdown antes de seleccionar, y usar
+        wait_for_element_present en vez de wait_for_element_visible
+        (Select() trabaja con elementos en DOM sin importar visibilidad).
+        """
+        print("Seleccionando tipo de contrato y justificacion...")
+        # Scroll para que el dropdown sea visible en el viewport
+        self.ejecutar_js("window.scrollTo(0, 1500)")
+        self._seleccionar_dropdown_presente(self.SELECT_TIPO_CONTRATO, tipo_contrato_normalizado)
+        self._seleccionar_dropdown_presente("selJustificationTypeOfContractSelected", "Regla aplicable")
+
+    def _seleccionar_dropdown_presente(self, element_id, texto_visible, timeout=LONG_TIMEOUT):
+        """
+        Selecciona un valor en un <select> esperando solo presencia en DOM
+        (no visibilidad). Esto replica el patron del original:
+          Select(driver.find_element(By.ID, '...')).select_by_visible_text('...')
+        que funciona sin importar si el elemento esta en el viewport.
+        """
+        self.esperar_presente(f"#{element_id}", timeout=timeout)
+        from selenium.webdriver.support.ui import Select
+        select_element = self.driver.find_element("id", element_id)
+        Select(select_element).select_by_visible_text(texto_visible)
 
     def _configurar_duracion_y_fechas(self, fecha_inicio, fecha_fin):
-        """Lineas 324-331: Configura duracion y fecha de terminacion."""
+        """
+        Lineas 324-331: Configura duracion y fecha de terminacion.
+
+        Original:
+          campoDuracionContrato.send_keys(valorDuracion)
+          campoFechaTerminacionContrato.send_keys(fecha_fin + " 00:00")
+          ActionChains(driver).move_to_element(campoDuracionContrato).click()
+
+        CRITICO — Por que NO usar sb.type() / esperar_y_escribir:
+          sb.type() hace click interno para enfocar el campo antes de escribir.
+          Ese click nativo es interceptado por el blockUI blockOverlay (z-index:1000,
+          opacity:0) que SECOP II activa tras operaciones AJAX previas.
+          El original usa find_element().send_keys() directo — sin click de enfoque.
+
+        El click final en duracion quita el foco del campo de fecha y cierra
+        el datepicker popup, forzando a SECOP II a validar el valor ingresado.
+        """
+        print("Configurando duracion y fechas...")
         duracion = obtener_dias(fecha_inicio, fecha_fin)
-        self.esperar_y_escribir(self.INPUT_DURACION,          duracion)
-        self.esperar_y_escribir(self.INPUT_FECHA_TERMINACION, fecha_fin + " 00:00")
-        # Click en duracion para quitar foco de la fecha (lineas 330-331)
-        self.esperar_y_click(self.INPUT_DURACION)
+
+        # 1. Duracion — find_element + send_keys directo (patron original)
+        self.eliminar_overlays()
+        campo_duracion = self.driver.find_element("id", "nbxDurationGen")
+        campo_duracion.clear()
+        campo_duracion.send_keys(duracion)
+
+        # 2. Fecha terminacion — mismo patron: send_keys directo
+        self.eliminar_overlays()
+        campo_fecha = self.driver.find_element("id", "dtmbContractEndDateGen_txt")
+        campo_fecha.send_keys(fecha_fin + " 00:00")
+
+        # 3. Click en duracion para quitar foco de la fecha y cerrar datepicker
+        #    Original: ActionChains(driver).move_to_element(campoDuracionContrato).click()
+        #    Cerramos el datepicker via JS y eliminamos overlays antes del click
+        self.ejecutar_js("""
+            var dp = document.getElementById('ui-datepicker-div');
+            if (dp) dp.style.display = 'none';
+        """)
+        self.eliminar_overlays()
+        campo_duracion.click()
 
     def _configurar_acuerdos_comerciales(self, acuerdos_comerciales):
         """Lineas 332-361: Configura los acuerdos comerciales."""
@@ -439,19 +516,24 @@ class InformacionGeneralPage(BasePage):
 
     def _guardar_y_obtener_url(self):
         """
-        Avanza al siguiente paso (Configuracion) haciendo click en el boton ">".
+        Guarda la informacion general y retorna la URL actual como Proceso 2.
 
-        Por que BTN_SIGUIENTE_PASO y no BTN_GUARDAR:
-          - "Guardar" solo persiste la informacion general en el paso actual.
-          - "Siguiente Paso" (>) guarda Y navega al paso Configuracion.
-          - La URL resultante es la de Configuracion y se almacena como Proceso 2,
-            sirviendo como punto de entrada para el paso siguiente.
+        CRITICO — Por que NO usar esperar_cambio_url:
+          El boton Guardar (tbToolBarPlaceHolder_btnSaveProcedureTop) solo persiste
+          los datos en el paso actual. La URL NO cambia despues de guardar.
+          esperar_cambio_url esperaba un cambio de URL que nunca ocurria → timeout.
 
-        El boton tiene onclick=postForm(...) → requiere JS click.
-        Tras el click no hay mensaje de exito — la URL cambia directamente.
+        Patron del original (funciones.py:362-367):
+          1. ActionChains.move_to_element(botonGuardarProceso2).click() → js_click
+          2. wait.until("Proceso guardado con éxito") → esperar_exito()
+          3. driver.current_url → url_actual (misma URL, solo confirma que guardo OK)
+
+        La URL guardada como 'Proceso 2' es la misma pagina tras guardar exitosamente.
+        ConfiguracionPage usa esta URL y navega desde ahi al paso de configuracion.
         """
-        url_antes = self.url_actual
-        self.esperar_y_click_js(self.BTN_SIGUIENTE_PASO, timeout=LONG_TIMEOUT)
-        nueva_url = self.esperar_cambio_url(url_antes, timeout=SAVE_TIMEOUT)
-        print(f"Informacion general completada. URL Proceso 2: {nueva_url}")
-        return nueva_url
+        print("Guardando informacion general...")
+        self.esperar_y_click_js(self.BTN_GUARDAR_PASO, timeout=LONG_TIMEOUT)
+        self.esperar_exito(timeout=SAVE_TIMEOUT)
+        url = self.url_actual
+        print(f"Informacion general completada. URL Proceso 2: {url}")
+        return url

@@ -1,13 +1,14 @@
+# -*- coding: utf-8 -*-
 """
-Test de integracion: Creacion de proceso en SECOP II (Paso 1 del pipeline)
-Cubre: LoginPage.iniciar_sesion() + CreacionProcesoPage.crear_proceso()
+Test de integracion: Cuestionario del proceso en SECOP II (Paso 4 del pipeline)
+Cubre: LoginPage.iniciar_sesion() + CuestionarioPage.completar()
 
 Ejecucion:
     cd automatizacionsecop2-main
-    venv\\Scripts\\python tests\\test_creacion_proceso.py
+    venv\\Scripts\\python tests\\test_cuestionario.py
 
 Prerequisito: el registro de CASO_PRUEBA debe existir en la hoja BASE_DATOS_BYS
-con 'Proceso 1' vacio (o se sobreescribira con la URL nueva).
+con 'Proceso 3' completado (con URL) y 'Proceso 4' vacio (o se sobreescribira con la URL nueva).
 """
 import os
 import sys
@@ -16,12 +17,12 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, root_dir)
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(root_dir, 'env'))   # archivo se llama 'env', no '.env'
+load_dotenv(os.path.join(root_dir, 'env'))
 
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository
 from utils.mappers import extraer_datos_fila
 from pages.login_page import LoginPage
-from pages.creacion_proceso_page import CreacionProcesoPage
+from pages.cuestionario_page import CuestionarioPage
 from seleniumbase import Driver
 from config.settings import CASO_PRUEBA
 
@@ -46,9 +47,9 @@ def init_repo():
 # TEST
 # ---------------------------------------------------------------------------
 
-def test_creador_proceso():
+def test_cuestionario():
     driver = None
-    print("=== INICIANDO TEST CREACION PROCESO (PASO 1) ===\n")
+    print("=== INICIANDO TEST CUESTIONARIO (PASO 4) ===\n")
     try:
         # 1. Datos desde Google Sheets
         repo, ws_name = init_repo()
@@ -70,9 +71,22 @@ def test_creador_proceso():
             return
 
         datos = extraer_datos_fila(target)
+
+        # Sincronizar estado_proceso_3 (URL del paso anterior)
+        datos['estado_proceso_3'] = datos['proceso_3']
+
+        if not datos['estado_proceso_3']:
+            print("ERROR: 'Proceso 3' esta vacio. No se puede navegar al proceso. Debe correr Paso 3 primero.")
+            return
+
         print(f"Fila {fila_excel}")
         print(f"  Nombre  : '{datos['nombre_proceso']}'")
-        print(f"  Unidad  : '{datos['unidad_contratacion']}'")
+        print(f"  Proceso 3 (URL): '{datos['estado_proceso_3']}'")
+        print(f"  --- DATOS DEL CUESTIONARIO EXTRAIDOS ---")
+        print(f"  Codigo UNSPSC: '{datos['codigo']}'")
+        print(f"  Descripcion (Objeto): '{datos['objeto_descripcion'][:80]}...'")
+        print(f"  Valor estimado: '{datos['valor_estimado']}'")
+        print(f"  -------------------------------------------")
 
         # 2. Navegador + login
         print("\nIniciando Chrome...")
@@ -82,19 +96,21 @@ def test_creador_proceso():
         login_page.iniciar_sesion()
         print(f"Login OK — URL: {driver.current_url}\n")
 
-        # 3. Paso 1: creacion del proceso
-        print(">> PASO 1: Creacion del proceso")
+        # 3. Paso 4: completar cuestionario
+        print(">> PASO 4: Completar cuestionario (UNSPSC, descripcion, precio, cantidad)")
 
-        url_p1 = CreacionProcesoPage(driver).crear_proceso(
-            datos['nombre_proceso'],
-            datos['unidad_contratacion']
+        url_p4 = CuestionarioPage(driver).completar(
+            url_proceso_3=datos['estado_proceso_3'],
+            codigo=datos['codigo'],
+            descripcion=datos['objeto_descripcion'],
+            valor=datos['valor_estimado']
         )
 
         # 4. Persistir en Google Sheets
-        print(f"\nActualizando 'Proceso 1' en fila {fila_excel}...")
-        repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 1', url_p1)
+        print(f"\nActualizando 'Proceso 4' en fila {fila_excel}...")
+        repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 4', url_p4)
         print(f"Google Sheets actualizado.")
-        print(f"URL guardada: {url_p1}")
+        print(f"URL guardada: {url_p4}")
 
     except Exception as e:
         import traceback
@@ -108,8 +124,8 @@ def test_creador_proceso():
             except Exception:
                 pass
 
-    print("\n=== FIN TEST CREACION PROCESO ===")
+    print("\n=== FIN TEST CUESTIONARIO ===")
 
 
 if __name__ == '__main__':
-    test_creador_proceso()
+    test_cuestionario()

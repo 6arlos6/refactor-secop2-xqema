@@ -76,6 +76,27 @@ class BasePage:
         self.driver.get(url)
 
     # -----------------------------------------------------------------------
+    # OVERLAYS — Limpieza de overlays SECOP II
+    #
+    # SECOP II usa jQuery BlockUI y Vortal preloaders como overlays durante
+    # operaciones AJAX. Estos tienen z-index:1000, position:fixed, opacity:0
+    # (invisibles pero interceptan clicks nativos de Selenium).
+    # El codigo original cubria esto con time.sleep() entre operaciones.
+    # Nosotros los eliminamos del DOM antes de interactuar.
+    # -----------------------------------------------------------------------
+
+    def eliminar_overlays(self):
+        """Elimina overlays blockUI y vortal-preloader del DOM via JS."""
+        try:
+            self.sb.execute_script("""
+                document.querySelectorAll('.blockUI, .vortal-preloader').forEach(
+                    function(el) { el.remove(); }
+                );
+            """)
+        except Exception:
+            pass  # Si falla el JS (ej: iframe sin acceso), seguir adelante
+
+    # -----------------------------------------------------------------------
     # CLICKS
     # Patron SeleniumBase: sb.click() espera clickeable + retry automatico.
     # Para botones SECOP II con onclick/postForm: sb.js_click().
@@ -97,14 +118,26 @@ class BasePage:
         JavaScript click para botones SECOP II con onclick/postForm handlers.
         Equivale a driver.execute_script("arguments[0].click()") del codigo original.
         sb.js_click() realiza la misma operacion de forma limpia.
+        Incluye limpieza de overlays para evitar ElementClickInterceptedException.
         """
         self.sb.wait_for_element_visible(f"#{element_id}", timeout=timeout)
+        self.eliminar_overlays()
         self.sb.js_click(f"#{element_id}")
 
     def esperar_y_click_js_xpath(self, xpath, timeout=DEFAULT_TIMEOUT):
         """JS click por XPATH (para elementos sin ID unico)."""
         self.sb.wait_for_element_visible(xpath, timeout=timeout)
+        self.eliminar_overlays()
         self.sb.js_click(xpath)
+
+    def esperar_y_click_limpio(self, selector, timeout=DEFAULT_TIMEOUT):
+        """
+        Click nativo con limpieza previa de overlays.
+        Usar cuando sb.click() falla por blockUI/vortal-preloader.
+        """
+        self.sb.wait_for_element_visible(selector, timeout=timeout)
+        self.eliminar_overlays()
+        self.sb.click(selector, timeout=timeout)
 
     # -----------------------------------------------------------------------
     # ESCRITURA
