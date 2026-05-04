@@ -115,7 +115,7 @@ class ConfiguracionPage(BasePage):
 
         # 5. SIIF = NO (linea 529-531, original usa ActionChains)
         print("Seleccionando SIIF = No...")
-        self.esperar_y_click_js(self.RADIO_SIIF_NO)
+        self._click_action_chains(self.RADIO_SIIF_NO)
 
         # 6. Validar CDPs (lineas 532-534)
         if len(codigo_cdp) != len(saldo_cdp):
@@ -143,28 +143,25 @@ class ConfiguracionPage(BasePage):
         except Exception:
             pass
 
-    def _disparar_eventos_input(self, element_id):
+    def _click_action_chains(self, element_id):
         """
-        Dispara los eventos 'change' y 'blur' via JS para forzar 
-        la actualizacion de totales en SECOP II.
-        """
-        script = f"""
-        var el = document.getElementById('{element_id}');
-        if(el) {{
-            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            el.dispatchEvent(new Event('blur', {{ bubbles: true }}));
-        }}
-        """
-        self.sb.execute_script(script)
-
-    def _escribir_nativo_con_blur(self, element_id, texto):
-        """
-        Escribe usando send_keys nativo y envia TAB para forzar 
-        la actualizacion de totales (blur) en los scripts de SECOP II.
-        Maneja dinamicamente StaleElementReferenceException.
+        Realiza un clic usando ActionChains para mover el cursor y hacer clic nativo.
+        Esto dispara los eventos 'blur' de inputs previamente enfocados en SECOP II.
         """
         self.esperar_visible(f"#{element_id}", timeout=LONG_TIMEOUT)
+        self.sb.sleep(1)
+        el = self.driver.find_element("id", element_id)
+        from selenium.webdriver.common.action_chains import ActionChains
+        ActionChains(self.driver).move_to_element(el).click().perform()
+        self._esperar_desbloqueo_ui()
+
+    def _escribir_como_humano(self, element_id, texto):
+        """
+        Simula la escritura humana limpiando cuidadosamente con Ctrl+A + Delete
+        y luego usando send_keys. Previene bugs del framework Vortal.
+        """
+        self.esperar_visible(f"#{element_id}", timeout=LONG_TIMEOUT)
+        self.sb.sleep(1) # Espera a que el DOM asiente el elemento
         
         from selenium.common.exceptions import StaleElementReferenceException
         from selenium.webdriver.common.keys import Keys
@@ -172,22 +169,21 @@ class ConfiguracionPage(BasePage):
         for attempt in range(5):
             try:
                 el = self.driver.find_element("id", element_id)
-                el.clear()
+                # Seleccionar todo y borrar es mas seguro que .clear() en SECOP
+                el.send_keys(Keys.CONTROL + "a")
+                el.send_keys(Keys.DELETE)
                 self.sb.sleep(0.5)
+                
                 el = self.driver.find_element("id", element_id)
                 el.send_keys(texto)
-                self.sb.sleep(0.5)
-                el = self.driver.find_element("id", element_id)
-                el.send_keys(Keys.TAB)
+                self.sb.sleep(1)
                 break
             except StaleElementReferenceException:
                 self.sb.sleep(1)
         else:
-            # Fallback en caso de fallar 5 veces
-            self.limpiar_y_escribir_por_id(element_id, texto)
-            self.sb.send_keys(f"#{element_id}", "\t")
+            self.sb.type(f"#{element_id}", texto)
             
-        self.sb.sleep(1) # Pausa para que SECOP II calcule
+        self.sb.sleep(1)
 
     def _click_radio_dinamico(self, element_id):
         """
@@ -196,18 +192,24 @@ class ConfiguracionPage(BasePage):
         """
         selector = f"#{element_id}"
         from selenium.common.exceptions import StaleElementReferenceException, ElementClickInterceptedException
+        from selenium.webdriver.common.action_chains import ActionChains
         
         for _ in range(5):
             try:
                 self.esperar_visible(selector, timeout=5)
                 self.eliminar_overlays()
                 el = self.driver.find_element("css selector", selector)
-                el.click()
+                
+                # Desplazar al centro para evitar que cabeceras o footers tapen el click
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+                self.sb.sleep(0.5)
+                
+                ActionChains(self.driver).move_to_element(el).click().perform()
                 break # Click exitoso
             except (StaleElementReferenceException, ElementClickInterceptedException):
                 self.sb.sleep(1)
         else:
-            # Fallback a JS si el nativo falla constantemente
+            # Fallback a js_click
             self.sb.js_click(selector)
             
         self._esperar_desbloqueo_ui()
@@ -319,6 +321,7 @@ class ConfiguracionPage(BasePage):
         """
         print("  Configurando destinacion: Funcionamiento...")
         self.seleccionar_dropdown(self.SELECT_DEST_GASTO, "Funcionamiento")
+        self.sb.sleep(2) # Pausa crucial para asentar re-render tras el select
         self._esperar_desbloqueo_ui()
         self._click_radio_dinamico(self.RADIO_PNG_NO)
         self._click_radio_dinamico(self.RADIO_SGP_NO)
@@ -327,8 +330,7 @@ class ConfiguracionPage(BasePage):
         self._click_radio_dinamico(self.RADIO_REC_CREDITO_NO)
         self._click_radio_dinamico(self.RADIO_OTROS_REC_SI)
         
-        self._escribir_nativo_con_blur(self.INPUT_OTROS_RECURSOS, valor_estimado)
-        self._disparar_eventos_input(self.INPUT_OTROS_RECURSOS)
+        self._escribir_como_humano(self.INPUT_OTROS_RECURSOS, valor_estimado)
 
     def _configurar_inversion(self, valor_estimado):
         """
@@ -339,6 +341,7 @@ class ConfiguracionPage(BasePage):
         """
         print("  Configurando destinacion: Inversion...")
         self.seleccionar_dropdown(self.SELECT_DEST_GASTO, "Inversion")
+        self.sb.sleep(2) # Pausa crucial para asentar re-render tras el select
         self._esperar_desbloqueo_ui()
         self._click_radio_dinamico(self.RADIO_PNG_NO)
         self._click_radio_dinamico(self.RADIO_SGP_NO)
@@ -347,8 +350,7 @@ class ConfiguracionPage(BasePage):
         self._click_radio_dinamico(self.RADIO_REC_CREDITO_NO)
         self._click_radio_dinamico(self.RADIO_OTROS_REC_NO)
         
-        self._escribir_nativo_con_blur(self.INPUT_SGR, valor_estimado)
-        self._disparar_eventos_input(self.INPUT_SGR)
+        self._escribir_como_humano(self.INPUT_SGR, valor_estimado)
 
     def _agregar_cdps(self, codigos_cdp, saldos_cdp, tipo_cdp):
         """
@@ -390,14 +392,14 @@ class ConfiguracionPage(BasePage):
             
         self._esperar_desbloqueo_ui()
 
-        # Llenar datos usando el metodo nativo con blur para simular al usuario
-        self._escribir_nativo_con_blur(self.INPUT_CODIGO_CDP, codigo)
-        self._escribir_nativo_con_blur(self.INPUT_SALDO_CDP, saldo)
-        self._escribir_nativo_con_blur(self.INPUT_SALDO_COMPROMETER, saldo)
-        self._escribir_nativo_con_blur(self.INPUT_SUBUNIDAD, "00-00-00")
+        # Llenar datos usando el metodo nativo para simular al usuario
+        self._escribir_como_humano(self.INPUT_CODIGO_CDP, codigo)
+        self._escribir_como_humano(self.INPUT_SALDO_CDP, saldo)
+        self._escribir_como_humano(self.INPUT_SALDO_COMPROMETER, saldo)
+        self._escribir_como_humano(self.INPUT_SUBUNIDAD, "00-00-00")
 
-        # Crear y volver al contenido principal (ActionChains en original → js_click)
-        self.esperar_y_click_js(self.BTN_CREAR_CDP)
+        # Crear y volver al contenido principal
+        self._click_action_chains(self.BTN_CREAR_CDP)
         self.volver_contenido_principal()
 
     def _guardar_y_obtener_url(self):

@@ -200,11 +200,14 @@ class CreacionProcesoPage(BasePage):
 
         # 3. Esperar y seleccionar el resultado del autocomplete
         #    XPath del original: //span[contains(text(), '{unidad_contratacion}')]
-        #    ActionChains del original → js_click equivalente
+        #    Debe usarse ActionChains para que jQuery UI Autocomplete registre el clic.
         xpath_resultado = f"//span[contains(text(), '{unidad_contratacion}')]" 
         try:
             self.sb.wait_for_element_visible(xpath_resultado, timeout=DEFAULT_TIMEOUT)
-            self.esperar_y_click_js_xpath(xpath_resultado)
+            self.sb.sleep(1) # Pausa breve para asegurar que el elemento este renderizado
+            el = self.driver.find_element("xpath", xpath_resultado)
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(self.driver).move_to_element(el).click().perform()
             print(f"    Unidad seleccionada: '{unidad_contratacion}'")
         except Exception:
             # Fallback: intentar con el patron generico ac_results
@@ -213,7 +216,8 @@ class CreacionProcesoPage(BasePage):
                 self.sb.wait_for_element_visible(
                     "//div[contains(@class,'ac_results')]//li[1]", timeout=8
                 )
-                self.sb.js_click("//div[contains(@class,'ac_results')]//li[1]")
+                el = self.driver.find_element("xpath", "//div[contains(@class,'ac_results')]//li[1]")
+                ActionChains(self.driver).move_to_element(el).click().perform()
                 print("    Unidad seleccionada via ac_results generico.")
             except Exception:
                 # Ultimo fallback: teclado puro (no requiere click nativo)
