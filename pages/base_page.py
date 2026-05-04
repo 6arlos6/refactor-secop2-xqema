@@ -327,7 +327,7 @@ class BasePage:
     # -----------------------------------------------------------------------
 
     def esperar_exito(self, texto="Proceso guardado con éxito", timeout=SAVE_TIMEOUT):
-        self.sb.wait_for_text(texto, timeout=timeout)
+        self.sb.wait_for_text(texto, "html", timeout=timeout)
 
     # -----------------------------------------------------------------------
     # JAVASCRIPT

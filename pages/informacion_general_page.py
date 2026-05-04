@@ -309,7 +309,7 @@ class InformacionGeneralPage(BasePage):
             # ----------------------------------------------------------------
             # 1. Abrir frame de seleccion y buscar por NIT primero
             # ----------------------------------------------------------------
-            self.esperar_y_click_por_id(self.BTN_BUSCAR_CONTRATISTA, timeout=LONG_TIMEOUT)
+            self.esperar_y_click_js(self.BTN_BUSCAR_CONTRATISTA, timeout=LONG_TIMEOUT)
             self.cambiar_a_frame(self.FRAME_SELECCION_CONTRATISTA)
 
             print(f"  Buscando proveedor por NIT: {documento}...")
@@ -516,24 +516,25 @@ class InformacionGeneralPage(BasePage):
 
     def _guardar_y_obtener_url(self):
         """
-        Guarda la informacion general y retorna la URL actual como Proceso 2.
-
-        CRITICO — Por que NO usar esperar_cambio_url:
-          El boton Guardar (tbToolBarPlaceHolder_btnSaveProcedureTop) solo persiste
-          los datos en el paso actual. La URL NO cambia despues de guardar.
-          esperar_cambio_url esperaba un cambio de URL que nunca ocurria → timeout.
-
-        Patron del original (funciones.py:362-367):
-          1. ActionChains.move_to_element(botonGuardarProceso2).click() → js_click
-          2. wait.until("Proceso guardado con éxito") → esperar_exito()
-          3. driver.current_url → url_actual (misma URL, solo confirma que guardo OK)
-
-        La URL guardada como 'Proceso 2' es la misma pagina tras guardar exitosamente.
-        ConfiguracionPage usa esta URL y navega desde ahi al paso de configuracion.
+        Guarda la informacion general, hace click en Continuar y maneja el modal
+        de confirmación si aparece. Retorna la URL de la siguiente pagina.
         """
         print("Guardando informacion general...")
         self.esperar_y_click_js(self.BTN_GUARDAR_PASO, timeout=LONG_TIMEOUT)
         self.esperar_exito(timeout=SAVE_TIMEOUT)
-        url = self.url_actual
-        print(f"Informacion general completada. URL Proceso 2: {url}")
-        return url
+        
+        print("Continuando al siguiente paso...")
+        url_antes = self.url_actual
+        self.esperar_y_click_js("tbToolBarPlaceHolder_btnApproveDossier", timeout=LONG_TIMEOUT)
+        
+        # Manejar modal si aparece (Esperamos un poco a ver si el modal de confirmacion aparece)
+        try:
+            self.sb.wait_for_element_visible("#btnNoPAAPublishedCurrentYearConfirmDialogModal", timeout=5)
+            print("Modal de confirmacion detectado. Confirmando...")
+            self.esperar_y_click_js("btnNoPAAPublishedCurrentYearConfirmDialogModal", timeout=LONG_TIMEOUT)
+        except Exception:
+            pass # No aparecio modal de confirmacion.
+            
+        url_nueva = self.esperar_cambio_url(url_antes, timeout=SAVE_TIMEOUT)
+        print(f"Informacion general completada. URL Proceso 2: {url_nueva}")
+        return url_nueva
