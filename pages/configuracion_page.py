@@ -131,6 +131,87 @@ class ConfiguracionPage(BasePage):
     # METODOS PRIVADOS
     # =========================================================================
 
+    def _esperar_desbloqueo_ui(self):
+        """
+        Espera dinamicamente a que los overlays de carga de SECOP II desaparezcan.
+        Reemplaza los time.sleep() estaticos asegurando que la UI este lista.
+        """
+        self.sb.sleep(0.5) # Pequeña pausa para permitir que el AJAX inicie y muestre el overlay
+        try:
+            self.sb.wait_for_element_not_visible(".blockUI", timeout=20)
+            self.sb.wait_for_element_not_visible(".vortal-preloader", timeout=20)
+        except Exception:
+            pass
+
+    def _disparar_eventos_input(self, element_id):
+        """
+        Dispara los eventos 'change' y 'blur' via JS para forzar 
+        la actualizacion de totales en SECOP II.
+        """
+        script = f"""
+        var el = document.getElementById('{element_id}');
+        if(el) {{
+            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            el.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+        }}
+        """
+        self.sb.execute_script(script)
+
+    def _escribir_nativo_con_blur(self, element_id, texto):
+        """
+        Escribe usando send_keys nativo y envia TAB para forzar 
+        la actualizacion de totales (blur) en los scripts de SECOP II.
+        Maneja dinamicamente StaleElementReferenceException.
+        """
+        self.esperar_visible(f"#{element_id}", timeout=LONG_TIMEOUT)
+        
+        from selenium.common.exceptions import StaleElementReferenceException
+        from selenium.webdriver.common.keys import Keys
+        
+        for attempt in range(5):
+            try:
+                el = self.driver.find_element("id", element_id)
+                el.clear()
+                self.sb.sleep(0.5)
+                el = self.driver.find_element("id", element_id)
+                el.send_keys(texto)
+                self.sb.sleep(0.5)
+                el = self.driver.find_element("id", element_id)
+                el.send_keys(Keys.TAB)
+                break
+            except StaleElementReferenceException:
+                self.sb.sleep(1)
+        else:
+            # Fallback en caso de fallar 5 veces
+            self.limpiar_y_escribir_por_id(element_id, texto)
+            self.sb.send_keys(f"#{element_id}", "\t")
+            
+        self.sb.sleep(1) # Pausa para que SECOP II calcule
+
+    def _click_radio_dinamico(self, element_id):
+        """
+        Hace un click nativo con reintentos para manejar re-renderizados del DOM (StaleElementReference).
+        Luego espera dinamicamente a que la UI de SECOP II se desbloquee.
+        """
+        selector = f"#{element_id}"
+        from selenium.common.exceptions import StaleElementReferenceException, ElementClickInterceptedException
+        
+        for _ in range(5):
+            try:
+                self.esperar_visible(selector, timeout=5)
+                self.eliminar_overlays()
+                el = self.driver.find_element("css selector", selector)
+                el.click()
+                break # Click exitoso
+            except (StaleElementReferenceException, ElementClickInterceptedException):
+                self.sb.sleep(1)
+        else:
+            # Fallback a JS si el nativo falla constantemente
+            self.sb.js_click(selector)
+            
+        self._esperar_desbloqueo_ui()
+
     def _avanzar_a_configuracion(self):
         """
         Lineas 401-434: Avanza a la seccion de configuracion.
@@ -238,13 +319,16 @@ class ConfiguracionPage(BasePage):
         """
         print("  Configurando destinacion: Funcionamiento...")
         self.seleccionar_dropdown(self.SELECT_DEST_GASTO, "Funcionamiento")
-        self.esperar_y_click_js(self.RADIO_PNG_NO)
-        self.esperar_y_click_js(self.RADIO_SGP_NO)
-        self.esperar_y_click_js(self.RADIO_SGR_NO)
-        self.esperar_y_click_js(self.RADIO_REC_PROPIOS_NO)
-        self.esperar_y_click_js(self.RADIO_REC_CREDITO_NO)
-        self.esperar_y_click_js(self.RADIO_OTROS_REC_SI)
-        self.esperar_y_escribir_por_id(self.INPUT_OTROS_RECURSOS, valor_estimado)
+        self._esperar_desbloqueo_ui()
+        self._click_radio_dinamico(self.RADIO_PNG_NO)
+        self._click_radio_dinamico(self.RADIO_SGP_NO)
+        self._click_radio_dinamico(self.RADIO_SGR_NO)
+        self._click_radio_dinamico(self.RADIO_REC_PROPIOS_NO)
+        self._click_radio_dinamico(self.RADIO_REC_CREDITO_NO)
+        self._click_radio_dinamico(self.RADIO_OTROS_REC_SI)
+        
+        self._escribir_nativo_con_blur(self.INPUT_OTROS_RECURSOS, valor_estimado)
+        self._disparar_eventos_input(self.INPUT_OTROS_RECURSOS)
 
     def _configurar_inversion(self, valor_estimado):
         """
@@ -255,13 +339,16 @@ class ConfiguracionPage(BasePage):
         """
         print("  Configurando destinacion: Inversion...")
         self.seleccionar_dropdown(self.SELECT_DEST_GASTO, "Inversion")
-        self.esperar_y_click_js(self.RADIO_PNG_NO)
-        self.esperar_y_click_js(self.RADIO_SGP_NO)
-        self.esperar_y_click_js(self.RADIO_SGR_SI)
-        self.esperar_y_click_js(self.RADIO_REC_PROPIOS_NO)
-        self.esperar_y_click_js(self.RADIO_REC_CREDITO_NO)
-        self.esperar_y_click_js(self.RADIO_OTROS_REC_NO)
-        self.esperar_y_escribir_por_id(self.INPUT_SGR, valor_estimado)
+        self._esperar_desbloqueo_ui()
+        self._click_radio_dinamico(self.RADIO_PNG_NO)
+        self._click_radio_dinamico(self.RADIO_SGP_NO)
+        self._click_radio_dinamico(self.RADIO_SGR_SI)
+        self._click_radio_dinamico(self.RADIO_REC_PROPIOS_NO)
+        self._click_radio_dinamico(self.RADIO_REC_CREDITO_NO)
+        self._click_radio_dinamico(self.RADIO_OTROS_REC_NO)
+        
+        self._escribir_nativo_con_blur(self.INPUT_SGR, valor_estimado)
+        self._disparar_eventos_input(self.INPUT_SGR)
 
     def _agregar_cdps(self, codigos_cdp, saldos_cdp, tipo_cdp):
         """
@@ -300,12 +387,14 @@ class ConfiguracionPage(BasePage):
             self.esperar_y_click_js(self.RADIO_CDP)
         elif str(tipo_cdp) == "2":
             self.esperar_y_click_js(self.RADIO_VIGENCIAS_FUTURAS)
+            
+        self._esperar_desbloqueo_ui()
 
-        # Llenar datos (lineas 557-568, original usa WebDriverWait + send_keys)
-        self.esperar_y_escribir_por_id(self.INPUT_CODIGO_CDP, codigo)
-        self.esperar_y_escribir_por_id(self.INPUT_SALDO_CDP, saldo)
-        self.esperar_y_escribir_por_id(self.INPUT_SALDO_COMPROMETER, saldo)
-        self.esperar_y_escribir_por_id(self.INPUT_SUBUNIDAD, "00-00-00")
+        # Llenar datos usando el metodo nativo con blur para simular al usuario
+        self._escribir_nativo_con_blur(self.INPUT_CODIGO_CDP, codigo)
+        self._escribir_nativo_con_blur(self.INPUT_SALDO_CDP, saldo)
+        self._escribir_nativo_con_blur(self.INPUT_SALDO_COMPROMETER, saldo)
+        self._escribir_nativo_con_blur(self.INPUT_SUBUNIDAD, "00-00-00")
 
         # Crear y volver al contenido principal (ActionChains en original → js_click)
         self.esperar_y_click_js(self.BTN_CREAR_CDP)
@@ -324,7 +413,13 @@ class ConfiguracionPage(BasePage):
         (mismo patrón que InformacionGeneralPage).
         """
         print("Guardando configuracion del proceso...")
-        self.esperar_y_click_js(self.BTN_GUARDAR, timeout=LONG_TIMEOUT)
+        self.sb.sleep(3) # Pausa crucial para que termine de procesar los CDPs o animaciones
+        
+        self.esperar_visible(f"#{self.BTN_GUARDAR}")
+        btn_guardar = self.driver.find_element("id", self.BTN_GUARDAR)
+        from selenium.webdriver.common.action_chains import ActionChains
+        ActionChains(self.driver).move_to_element(btn_guardar).click().perform()
+        
         self.esperar_exito(timeout=SAVE_TIMEOUT)
         url = self.url_actual
         print(f"Configuracion guardada: {url}")
