@@ -160,6 +160,21 @@ class BasePage:
         self.sb.wait_for_element_visible(f"#{element_id}", timeout=timeout)
         self.sb.type(f"#{element_id}", texto, timeout=timeout)
 
+    def enviar_teclas(self, selector, texto, timeout=DEFAULT_TIMEOUT):
+        """
+        wait + click + clear + send_keys para campos que requieren eventos reales.
+        Usa raw element.send_keys() (no sb.type/JS) para:
+          - Autocomplete jQuery UI: dispara keydown/keyup/input → AJAX del dropdown.
+          - VortalNumericBox: dispara onchange → updateViewModel() del precio/cantidad.
+        sb.clear() no existe en Driver mode → se usa find_element().clear().
+        """
+        from selenium.webdriver.common.by import By
+        self.sb.wait_for_element_visible(selector, timeout=timeout)
+        self.sb.click(selector, timeout=timeout)
+        el = self.driver.find_element(By.XPATH, selector)
+        el.clear()
+        el.send_keys(texto)
+
     # -----------------------------------------------------------------------
     # ESPERAS EXPLICITAS
     # Usadas cuando se necesita esperar un estado especifico antes de actuar.

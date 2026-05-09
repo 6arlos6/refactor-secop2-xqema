@@ -82,9 +82,11 @@ def test_cuestionario():
         print(f"Fila {fila_excel}")
         print(f"  Nombre  : '{datos['nombre_proceso']}'")
         print(f"  Proceso 3 (URL): '{datos['estado_proceso_3']}'")
+        desc = datos['objeto_descripcion']
+        desc_display = desc[:80] + '...' if len(desc) > 80 else desc
         print(f"  --- DATOS DEL CUESTIONARIO EXTRAIDOS ---")
         print(f"  Codigo UNSPSC: '{datos['codigo']}'")
-        print(f"  Descripcion (Objeto): '{datos['objeto_descripcion'][:80]}...'")
+        print(f"  Descripcion (Objeto): '{desc_display}'")
         print(f"  Valor estimado: '{datos['valor_estimado']}'")
         print(f"  -------------------------------------------")
 
