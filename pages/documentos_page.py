@@ -126,17 +126,32 @@ class DocumentosPage(BasePage):
 
         # Cerrar modal (lineas 760-763)
         self.esperar_y_click_por_id(self.BTN_CERRAR_MODAL)
-        self.driver.switch_to.window(handles[0])
+        self.driver.switch_to.window(self.driver.window_handles[0])
 
-        # Esperar carga de documentos anexados (lineas 765-767)
-        self.esperar_presente(self.LOADING_INDICATOR, timeout=60)
+        # Esperar carga de documentos anexados (lineas 765-767).
+        # LOADING_INDICATOR es un XPath absoluto fragil: no siempre aparece
+        # (el servidor puede procesar los docs antes de que el spinner sea visible).
+        # Se hace opcional — si no aparece en 10s, se da una pausa fija y se sigue.
+        try:
+            self.esperar_presente(self.LOADING_INDICATOR, timeout=10)
+            self.esperar_invisible(self.LOADING_INDICATOR, timeout=60)
+        except Exception:
+            time.sleep(5)
 
-        # Ir a publicar (lineas 769-776)
-        self.esperar_y_click(self.BTN_IR_PUBLICAR)
-        self.esperar_invisible(self.LOADING_INDICATOR, timeout=60)
+        # Ir a publicar (lineas 769-776).
+        # Si el proceso ya esta en la etapa de publicacion, este boton puede no existir.
+        # En ese caso se salta directamente a BTN_PUBLICAR.
+        try:
+            self.esperar_y_click(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+            try:
+                self.esperar_invisible(self.LOADING_INDICATOR, timeout=60)
+            except Exception:
+                time.sleep(3)
+        except Exception:
+            print("  [INFO] Boton 'Ir a publicar' no encontrado — saltando directo a Publicar.")
 
         # Publicar (lineas 778-782)
-        self.esperar_y_click(self.BTN_PUBLICAR)
+        self.esperar_y_click(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
 
         # Aceptar alerta si aparece (lineas 784-789)
         self.aceptar_alerta_si_existe(timeout=5)

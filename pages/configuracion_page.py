@@ -98,6 +98,10 @@ class ConfiguracionPage(BasePage):
         codigo_cdp        = datos['codigo_cdp']
         saldo_cdp         = datos['saldo_cdp']
 
+        # Guardar datos en la instancia para que el retry de _guardar_y_obtener_url
+        # pueda re-ingresar la fecha si el VortalDatePicker la rechaza.
+        self._datos_configuracion = datos
+
         print("Configurando proceso...")
         self.navegar_a(url_proceso_2)
 
@@ -154,6 +158,32 @@ class ConfiguracionPage(BasePage):
         from selenium.webdriver.common.action_chains import ActionChains
         ActionChains(self.driver).move_to_element(el).click().perform()
         self._esperar_desbloqueo_ui()
+
+    def _escribir_fecha(self, element_id, texto):
+        """
+        Escribe una fecha en un campo VortalDatePicker disparando eventos reales.
+        El picker solo registra la fecha si recibe blur tras la escritura;
+        sin Tab al final, SECOP II rechaza el campo como vacio al guardar.
+        """
+        from selenium.webdriver.common.keys import Keys
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        self.esperar_visible(f"#{element_id}", timeout=LONG_TIMEOUT)
+        self.sb.sleep(0.5)
+
+        for attempt in range(5):
+            try:
+                el = self.driver.find_element("id", element_id)
+                el.send_keys(Keys.CONTROL + "a")
+                el.send_keys(Keys.DELETE)
+                self.sb.sleep(0.3)
+                el = self.driver.find_element("id", element_id)
+                el.send_keys(texto)
+                el.send_keys(Keys.TAB)  # dispara blur → VortalDatePicker registra la fecha
+                self.sb.sleep(0.5)
+                break
+            except StaleElementReferenceException:
+                self.sb.sleep(1)
 
     def _escribir_como_humano(self, element_id, texto):
         """
@@ -289,14 +319,17 @@ class ConfiguracionPage(BasePage):
         """
         Lineas 448-459: Firma, inicio ejecucion, plazo, valor estimado.
 
-        Original usa driver.find_element + .send_keys() directo (sin clear previo).
-        sb.type() hace clear + type, lo cual es equivalente y mas robusto.
+        Original usa driver.find_element + .send_keys() directo.
+        sb.type() falla para campos VortalDatePicker porque establece el valor
+        via JavaScript (element.value=...) sin disparar los eventos blur/change
+        que el picker necesita para registrar la fecha. Se usa _escribir_fecha()
+        que simula escritura real + Tab para forzar el evento blur del picker.
         """
         print("Llenando fechas y valor estimado...")
-        self.esperar_y_escribir_por_id(self.INPUT_FIRMA_CONTRATO, fecha_firma)
-        self.esperar_y_escribir_por_id(self.INPUT_FECHA_INICIO, fecha_inicio)
-        self.esperar_y_escribir_por_id(self.INPUT_PLAZO_EJECUCION, fecha_fin)
-        self.esperar_y_escribir_por_id(self.INPUT_VALOR_ESTIMADO, valor_estimado)
+        self._escribir_fecha(self.INPUT_FIRMA_CONTRATO, fecha_firma)
+        self._escribir_fecha(self.INPUT_FECHA_INICIO, fecha_inicio)
+        self._escribir_fecha(self.INPUT_PLAZO_EJECUCION, fecha_fin)
+        self._escribir_como_humano(self.INPUT_VALOR_ESTIMADO, valor_estimado)
 
     def _configurar_destinacion_gasto(self, destinacion_gasto, valor_estimado):
         """
@@ -402,27 +435,99 @@ class ConfiguracionPage(BasePage):
         self._click_action_chains(self.BTN_CREAR_CDP)
         self.volver_contenido_principal()
 
-    def _guardar_y_obtener_url(self):
+    def _verificar_errores_validacion(self):
         """
-        Lineas 577-584: Guarda la configuracion y retorna la URL.
-
-        Original:
-          1. ActionChains.move_to_element(btnSaveProcedureTop).click() → js_click
-          2. WebDriverWait(40) por "Proceso guardado con éxito"
-          3. driver.current_url
-
-        Se usa js_click porque btnSaveProcedureTop tiene onclick=postForm()
-        (mismo patrón que InformacionGeneralPage).
+        Lee div#validationSummary y retorna la lista de mensajes de error.
+        Retorna lista vacia si no hay errores o el div no existe.
         """
-        print("Guardando configuracion del proceso...")
-        self.sb.sleep(3) # Pausa crucial para que termine de procesar los CDPs o animaciones
-        
+        try:
+            from selenium.webdriver.common.by import By
+            el = self.driver.find_element(By.ID, "validationSummary")
+            texto = el.text.strip()
+            if not texto:
+                return []
+            return [linea.strip() for linea in texto.splitlines() if linea.strip()]
+        except Exception:
+            return []
+
+    def _click_guardar(self):
+        """Mueve al boton guardar y hace click (ActionChains como el original)."""
         self.esperar_visible(f"#{self.BTN_GUARDAR}")
         btn_guardar = self.driver.find_element("id", self.BTN_GUARDAR)
         from selenium.webdriver.common.action_chains import ActionChains
         ActionChains(self.driver).move_to_element(btn_guardar).click().perform()
-        
-        self.esperar_exito(timeout=SAVE_TIMEOUT)
+
+    def _guardar_y_obtener_url(self):
+        """
+        Lineas 577-584: Guarda la configuracion y retorna la URL.
+
+        Flujo:
+          1. ActionChains click en btnSaveProcedureTop (onclick=postForm())
+          2. Esperar "Proceso guardado con exito" o div#validationSummary
+          3. Si aparece error de fecha: re-ingresar fechas con Tab y reintentar (1 vez)
+          4. Si aparece otro error de validacion: lanzar excepcion con el texto
+
+        El error "Fecha de Firma del Contrato es obligatorio" ocurre cuando
+        sb.type() (JS) se uso en lugar de send_keys reales — el VortalDatePicker
+        necesita el evento blur para registrar la fecha. Con _escribir_fecha()
+        esto no deberia ocurrir, pero el retry sirve como red de seguridad.
+        """
+        print("Guardando configuracion del proceso...")
+        self.sb.sleep(3)
+
+        self._click_guardar()
+
+        # Esperar hasta que aparezca exito O validationSummary (lo que ocurra primero)
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support import expected_conditions as EC
+
+        SELECTOR_EXITO = "//td[contains(text(), 'Proceso guardado con')]"
+        SELECTOR_VALIDACION = "//*[@id='validationSummary']"
+
+        def exito_o_error(driver):
+            try:
+                driver.find_element(By.XPATH, SELECTOR_EXITO)
+                return "exito"
+            except Exception:
+                pass
+            try:
+                el = driver.find_element(By.ID, "validationSummary")
+                if el.text.strip():
+                    return "error"
+            except Exception:
+                pass
+            return None
+
+        resultado = self._wait(SAVE_TIMEOUT).until(exito_o_error)
+
+        if resultado == "error":
+            errores = self._verificar_errores_validacion()
+            print(f"  [VALIDACION] Errores detectados: {errores}")
+
+            errores_fecha = [e for e in errores if "Fecha de Firma" in e or "Firma del Contrato" in e]
+
+            if errores_fecha:
+                # El VortalDatePicker no recibio el blur — re-ingresar la fecha con Tab explícito
+                print("  [RETRY] Re-ingresando campo de fecha de firma y guardando de nuevo...")
+                datos = getattr(self, '_datos_configuracion', None)
+                if datos:
+                    self._escribir_fecha(self.INPUT_FIRMA_CONTRATO, datos['fecha_firma_contrato'])
+                    self.sb.sleep(2)
+                else:
+                    # Fallback: enfocar el campo y sacarle el foco para disparar blur
+                    from selenium.webdriver.common.keys import Keys
+                    el = self.driver.find_element("id", self.INPUT_FIRMA_CONTRATO)
+                    el.send_keys(Keys.TAB)
+                    self.sb.sleep(2)
+
+                self._click_guardar()
+                resultado2 = self._wait(SAVE_TIMEOUT).until(exito_o_error)
+                if resultado2 == "error":
+                    errores2 = self._verificar_errores_validacion()
+                    raise Exception(f"Validacion fallida tras retry: {errores2}")
+            else:
+                raise Exception(f"Error de validacion al guardar: {errores}")
+
         url = self.url_actual
         print(f"Configuracion guardada: {url}")
         return url
