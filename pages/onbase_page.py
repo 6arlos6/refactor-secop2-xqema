@@ -7,6 +7,7 @@ NOTA: Este page object maneja su PROPIO driver Chrome independiente
 porque OnBase requiere una sesion separada con configuracion de descarga.
 """
 import os
+import time
 import zipfile
 import unidecode
 from selenium import webdriver
@@ -185,7 +186,6 @@ class OnBasePage:
 
             # Esperar archivo con timeout (reemplaza while True + time.sleep(2))
             descarga_timeout = 120  # 2 minutos max
-            import time
             inicio = time.time()
             while not os.path.exists(zip_path):
                 if time.time() - inicio > descarga_timeout:

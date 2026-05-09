@@ -273,17 +273,23 @@ class BasePage:
     # URL
     # -----------------------------------------------------------------------
 
+    def _wait(self, timeout=DEFAULT_TIMEOUT):
+        """
+        Retorna un WebDriverWait sobre el driver subyacente.
+        Usar cuando se necesita .until() con condiciones custom o EC.*
+        que no tienen equivalente directo en la API sb.*.
+        """
+        from selenium.webdriver.support.wait import WebDriverWait
+        raw_driver = getattr(self.sb, 'driver', self.sb)
+        return WebDriverWait(raw_driver, timeout, poll_frequency=0.3)
+
     def esperar_cambio_url(self, url_actual, timeout=LONG_TIMEOUT):
         """
         Espera que la URL cambie desde url_actual.
         SeleniumBase no tiene wait_for_url_to_change_from() nativo,
         se usa WebDriverWait sobre el driver subyacente (unico punto que lo requiere).
         """
-        from selenium.webdriver.support.wait import WebDriverWait
-        raw_driver = getattr(self.sb, 'driver', self.sb)
-        WebDriverWait(raw_driver, timeout, poll_frequency=0.3).until(
-            lambda d: d.current_url != url_actual
-        )
+        self._wait(timeout).until(lambda d: d.current_url != url_actual)
         return self.driver.current_url
 
     def esperar_url_contiene(self, fragmento, timeout=LONG_TIMEOUT):

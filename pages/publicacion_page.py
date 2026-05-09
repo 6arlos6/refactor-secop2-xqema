@@ -6,14 +6,8 @@ Extraido de: proyecto-original-secob/funciones.py lineas 1019-1062 (obtener_enla
 NOTA: Este page object maneja su PROPIO driver Chrome independiente
 porque necesita una sesion limpia para obtener el enlace publico.
 """
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from seleniumbase import Driver
 from pages.login_page import LoginPage
 from pages.base_page import BasePage
 from utils.logger import log_step as print
@@ -46,12 +40,7 @@ class PublicacionPage:
         """
         print("Obteniendo enlace publico del proceso...")
 
-        options = Options()
-        options.add_argument("--incognito")
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=options
-        )
+        driver = Driver(incognito=True, headless=False)
         driver.maximize_window()
 
         try:
@@ -98,6 +87,6 @@ class PublicacionPage:
 
         finally:
             try:
-                driver.close()
+                driver.quit()
             except Exception:
                 pass

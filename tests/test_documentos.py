@@ -123,7 +123,7 @@ def test_documentos():
         repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 5', enlace_publico)
 
         # Guardar fecha de publicacion
-        fecha_str = fecha_publicacion.strftime("%#d/%m/%Y")
+        fecha_str = f"{fecha_publicacion.day}/{fecha_publicacion.strftime('%m/%Y')}"
         print(f"Actualizando fecha de publicacion: {fecha_str}...")
         try:
             repo.actualizar_celda_por_nombre(fila_excel, 'Fecha publicación', fecha_str)

@@ -7,10 +7,10 @@ DEUDA TECNICA: El adjunte de archivos usa pyautogui (lineas 706-734)
 porque SECOP II abre una ventana nativa de Windows para upload.
 Esto debe reemplazarse por Selenium file input cuando sea posible.
 """
+import os
 import time
 import pyautogui
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 from pages.base_page import BasePage, DEFAULT_TIMEOUT, LONG_TIMEOUT, SAVE_TIMEOUT
@@ -43,9 +43,10 @@ class DocumentosPage(BasePage):
         ahora = datetime.now()
         print("Iniciando proceso de documentos y publicacion...")
 
-        # Navegar y click en tab documentos (lineas 677-681)
+        # Navegar y click en tab documentos — click_limpio porque vortal-preloader
+        # intercepta el click nativo igual que en cuestionario_page
         self.driver.get(url_proceso_4)
-        self.click_cuando_estable(self.BTN_DOCUMENTOS, timeout=LONG_TIMEOUT)
+        self.esperar_y_click_limpio(self.BTN_DOCUMENTOS, timeout=LONG_TIMEOUT)
 
         # Descargar documentos de OnBase (linea 682 — usa su propio driver)
         onbase = OnBasePage()
@@ -73,7 +74,8 @@ class DocumentosPage(BasePage):
         # Los time.sleep aqui son NECESARIOS porque pyautogui interactua
         # con el sistema operativo, no con Selenium.
         # ================================================================
-        path_docs = DOWNLOAD_DIR + "\\"
+        # os.sep garantiza el separador correcto por OS (\\ en Windows, / en Unix)
+        path_docs = DOWNLOAD_DIR + os.sep
 
         pyautogui.hotkey('win', 'r')
         time.sleep(3)
