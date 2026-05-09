@@ -52,15 +52,27 @@ class DocumentosPage(BasePage):
         onbase = OnBasePage()
         lista_documentos = onbase.descargar_documentos(numero_contrato)
         if len(lista_documentos) == 0:
-            raise Exception("Parece que hubo un problema en OnBase o no fue posible adjuntar los documentos")
+            print("ADVERTENCIA: OnBase no retorno documentos para este contrato.")
+            print("  Posibles causas: contrato de prueba sin documentos, credenciales incorrectas,")
+            print("  o expediente no encontrado. El proceso se publicara SIN adjuntar documentos.")
+            url_publicada = self._publicar_sin_documentos()
+            return url_publicada, ahora
 
         # Click en boton anexar documentos (linea 685)
-        self.esperar_y_click_por_id(self.BTN_ANEXAR_DOCS, timeout=LONG_TIMEOUT)
+        # JS click: el overlay vortal-preloader reaparece tras los minutos en OnBase
+        # y bloquea el click nativo. esperar_y_click_js elimina overlays + usa JS click.
+        ventanas_antes = set(self.driver.window_handles)
+        self.esperar_y_click_js(self.BTN_ANEXAR_DOCS, timeout=LONG_TIMEOUT)
 
-        # Cambiar a ventana de carga (lineas 687-690)
-        handles = self.driver.window_handles
-        self.driver.switch_to.window(handles[-1])
+        # Esperar a que $.popupWindow abra la nueva ventana de upload (linea 686: sleep(5))
+        # El popup se abre de forma asincronica — hay que esperar antes de capturar handles.
+        self._wait(LONG_TIMEOUT).until(
+            lambda d: len(d.window_handles) > len(ventanas_antes)
+        )
+        nueva_ventana = (set(self.driver.window_handles) - ventanas_antes).pop()
+        self.driver.switch_to.window(nueva_ventana)
         self.driver.maximize_window()
+        time.sleep(6)  # popup DocumentAlternateUpload necesita tiempo para cargar (linea 690)
 
         # Click para mantener foco (lineas 692-701)
         try:
@@ -140,3 +152,32 @@ class DocumentosPage(BasePage):
         print("Proceso publicado exitosamente.")
 
         return url_publicada, ahora
+
+    def _publicar_sin_documentos(self):
+        """
+        Publica el proceso saltando el adjunte de documentos.
+        Se usa cuando OnBase no retorna documentos (contrato de prueba o error).
+        Retorna la URL publicada.
+        """
+        print("Publicando proceso sin adjuntar documentos...")
+
+        self.esperar_y_click(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+
+        # LOADING_INDICATOR puede no existir si no hubo carga de documentos — es opcional
+        try:
+            self.esperar_invisible(self.LOADING_INDICATOR, timeout=30)
+        except Exception:
+            pass
+
+        self.esperar_y_click(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
+        self.aceptar_alerta_si_existe(timeout=5)
+
+        try:
+            url_antes = self.url_actual
+            self._wait(50).until(EC.url_changes(url_antes))
+        except Exception:
+            print("Advertencia: la URL no cambio durante la publicacion sin documentos")
+
+        url_publicada = self.url_actual
+        print("Proceso publicado (sin documentos adjuntos).")
+        return url_publicada

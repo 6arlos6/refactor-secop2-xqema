@@ -193,7 +193,13 @@ class BasePage:
         return self.sb.wait_for_element_present(selector, timeout=timeout)
 
     def esperar_invisible(self, selector, timeout=DEFAULT_TIMEOUT):
-        return self.sb.wait_for_element_not_visible(selector, timeout=timeout)
+        # wait_for_element_not_visible no existe en Driver standalone — usar _wait + EC
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support import expected_conditions as EC
+        by = By.XPATH if selector.startswith(('/', '(')) else By.CSS_SELECTOR
+        return self._wait(timeout).until(
+            EC.invisibility_of_element_located((by, selector))
+        )
 
     def esperar_texto_en_elemento(self, selector, texto, timeout=DEFAULT_TIMEOUT):
         return self.sb.wait_for_text(texto, selector, timeout=timeout)

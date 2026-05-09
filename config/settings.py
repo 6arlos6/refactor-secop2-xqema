@@ -55,6 +55,11 @@ if not os.path.exists(CREDENCIALES_JSON):
 NOMBRE_ESTACION = os.getenv('NOMBRE_ESTACION')
 CASO_PRUEBA = os.getenv('CASO_PRUEBA', '450014145888-PRUEBA').strip("'\"")
 
+# Override del numero de contrato para OnBase. Cuando esta definido, el test
+# de documentos lo usa en lugar del numero derivado del nombre del proceso.
+# Permite testear la descarga con un contrato real sin cambiar CASO_PRUEBA.
+NUMERO_CONTRATO_ONBASE = os.getenv('NUMERO_CONTRATO_ONBASE', '').strip("'\"")
+
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',

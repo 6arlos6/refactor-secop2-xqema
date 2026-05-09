@@ -28,7 +28,7 @@ from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
 from seleniumbase import Driver
-from config.settings import CASO_PRUEBA
+from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE
 
 
 # ---------------------------------------------------------------------------
@@ -83,10 +83,16 @@ def test_documentos():
             print("ERROR: 'Proceso 4' esta vacio. No se puede navegar al proceso. Debe correr Paso 4 primero.")
             return
 
-        # Extraer numero de contrato (nombre del proceso, sin sufijo de prueba)
-        numero_contrato = datos['nombre_proceso']
-        if "-" in numero_contrato:
-            numero_contrato = numero_contrato.split("-")[0]
+        # Numero de contrato para OnBase.
+        # NUMERO_CONTRATO_ONBASE (env) sobreescribe el derivado del nombre del proceso.
+        # Util para testear con un contrato real que tenga documentos en OnBase.
+        if NUMERO_CONTRATO_ONBASE:
+            numero_contrato = NUMERO_CONTRATO_ONBASE
+            print(f"  [OVERRIDE] Usando NUMERO_CONTRATO_ONBASE del env: '{numero_contrato}'")
+        else:
+            numero_contrato = datos['nombre_proceso']
+            if "-" in numero_contrato:
+                numero_contrato = numero_contrato.split("-")[0]
 
         print(f"Fila {fila_excel}")
         print(f"  Nombre  : '{datos['nombre_proceso']}'")
