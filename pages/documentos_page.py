@@ -3,13 +3,13 @@
 Page Object: Adjuntar Documentos y Publicar (Proceso 5)
 Extraido de: proyecto-original-secob/funciones.py lineas 660-818 (documentos_proceso)
 
-DEUDA TECNICA: El adjunte de archivos usa pyautogui (lineas 706-734)
-porque SECOP II abre una ventana nativa de Windows para upload.
-Esto debe reemplazarse por Selenium file input cuando sea posible.
+Adjunte de archivos via Selenium:
+  SECOP II expone un <input type="file" multiple> en el popup DocumentAlternateUpload.
+  Se manipula directamente con send_keys(rutas), sin pyautogui, sin GUI del OS.
+  Esto hace el flujo compatible con headless=True y agnostico al sistema operativo.
 """
 import os
 import time
-import pyautogui
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
@@ -23,15 +23,17 @@ class DocumentosPage(BasePage):
     """Gestiona el adjunte de documentos y la publicacion del proceso."""
 
     # === SELECTORES ===
-    BTN_DOCUMENTOS = "//span[@id = 'lnk_stpmStepManager5']"
-    BTN_ANEXAR_DOCS = "incContractDocumentsbtnUploadDocumentGen"
+    BTN_DOCUMENTOS   = "//span[@id = 'lnk_stpmStepManager5']"
+    BTN_ANEXAR_DOCS  = "incContractDocumentsbtnUploadDocumentGen"
     BTN_UPLOAD_FILES = "btnUploadFilesButtonBottom"
     BTN_CERRAR_MODAL = "btnCancelBottomButtom"
-    BTN_IR_PUBLICAR = "//input[@id = 'btnOption_trRowToolbarTop_tdCell1_tbToolBar_Finish']"
-    BTN_PUBLICAR = "//input[@id = 'tbToolBarPlaceHolder_btnPublishRequest']"
-    TABLA_ARCHIVOS = '//*[@id="tblFilesTable"]/tbody[2]'
+    BTN_IR_PUBLICAR  = "//input[@id = 'btnOption_trRowToolbarTop_tdCell1_tbToolBar_Finish']"
+    BTN_PUBLICAR     = "//input[@id = 'tbToolBarPlaceHolder_btnPublishRequest']"
+    TABLA_ARCHIVOS   = '//*[@id="tblFilesTable"]/tbody[2]'
     LOADING_INDICATOR = "/html/body/div[2]/div[2]/div[2]/div[1]/table/tbody/tr/td[2]"
-    TITULO_PAGINA = '//*[@id="spnPageTitle"]'
+    # Selector del file input en el popup DocumentAlternateUpload.
+    # El atributo multiple="" permite enviar varias rutas separadas por \n.
+    INPUT_ARCHIVOS   = 'input[type="file"]'
 
     def adjuntar_y_publicar(self, url_proceso_4, numero_contrato):
         """
@@ -58,6 +60,10 @@ class DocumentosPage(BasePage):
             url_publicada = self._publicar_sin_documentos()
             return url_publicada, ahora
 
+        # Construir rutas absolutas — onbase.descargar_documentos() retorna solo nombres de archivo
+        rutas_docs = [os.path.join(DOWNLOAD_DIR, nombre) for nombre in lista_documentos]
+        print(f"  {len(rutas_docs)} documento(s) listos en: {DOWNLOAD_DIR}")
+
         # Click en boton anexar documentos (linea 685)
         # JS click: el overlay vortal-preloader reaparece tras los minutos en OnBase
         # y bloquea el click nativo. esperar_y_click_js elimina overlays + usa JS click.
@@ -72,44 +78,10 @@ class DocumentosPage(BasePage):
         nueva_ventana = (set(self.driver.window_handles) - ventanas_antes).pop()
         self.driver.switch_to.window(nueva_ventana)
         self.driver.maximize_window()
-        time.sleep(6)  # popup DocumentAlternateUpload necesita tiempo para cargar (linea 690)
 
-        # Click para mantener foco (lineas 692-701)
-        try:
-            self.esperar_y_click(self.TITULO_PAGINA, timeout=5)
-        except Exception:
-            pass
-
-        # ================================================================
-        # DEUDA TECNICA: Adjunte de archivos con pyautogui (lineas 706-734)
-        # SECOP II usa una ventana nativa de Windows para upload.
-        # Los time.sleep aqui son NECESARIOS porque pyautogui interactua
-        # con el sistema operativo, no con Selenium.
-        # ================================================================
-        # os.sep garantiza el separador correcto por OS (\\ en Windows, / en Unix)
-        path_docs = DOWNLOAD_DIR + os.sep
-
-        pyautogui.hotkey('win', 'r')
-        time.sleep(3)
-        pyautogui.write(path_docs)
-        pyautogui.press('enter')
-        time.sleep(5)
-        pyautogui.hotkey('ctrl', 'e')
-        time.sleep(3)
-        pyautogui.hotkey('ctrl', 'c')
-        time.sleep(5)
-        pyautogui.hotkey('alt', 'f4')
-        time.sleep(2)
-
-        self.driver.switch_to.window(self.driver.window_handles[-1])
-
-        screen_width, _ = pyautogui.size()
-        center_x = screen_width // 2
-        pyautogui.click(center_x, 200)
-        time.sleep(2)
-        pyautogui.hotkey('ctrl', 'v')
-        time.sleep(8)
-        # ================================================================
+        # Cargar archivos directamente via Selenium (reemplaza todo el bloque pyautogui)
+        # El popup DocumentAlternateUpload expone input[type="file" multiple].
+        self._cargar_archivos_via_input(rutas_docs)
 
         # Click en boton upload (lineas 735-737)
         self.esperar_y_click_por_id(self.BTN_UPLOAD_FILES)
@@ -167,6 +139,39 @@ class DocumentosPage(BasePage):
         print("Proceso publicado exitosamente.")
 
         return url_publicada, ahora
+
+    # -------------------------------------------------------------------------
+    # METODOS PRIVADOS
+    # -------------------------------------------------------------------------
+
+    def _cargar_archivos_via_input(self, rutas_docs):
+        """
+        Carga archivos en el popup de upload de SECOP II via Selenium, sin GUI ni pyautogui.
+
+        El popup DocumentAlternateUpload expone <input type="file" multiple>.
+        Selenium puede enviar las rutas absolutas directamente con send_keys(),
+        separadas por \\n para seleccion multiple. Funciona en headless y en
+        cualquier sistema operativo donde los archivos existan en disco.
+
+        Reemplaza el bloque pyautogui original (funciones.py lineas 706-734).
+        """
+        print(f"  Cargando {len(rutas_docs)} archivo(s) via Selenium file input...")
+
+        # Esperar a que el input de archivos aparezca en el popup
+        input_file = self._wait(LONG_TIMEOUT).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, self.INPUT_ARCHIVOS))
+        )
+
+        # Hacer visible el input si el framework lo ocultó con display:none o visibility:hidden
+        # (SECOP II usa un div decorativo encima del input nativo — hay que exponerlo)
+        self.driver.execute_script(
+            "arguments[0].style.display='block'; arguments[0].style.visibility='visible';",
+            input_file
+        )
+
+        # Enviar todas las rutas de una vez (\n como separador para multiple files)
+        input_file.send_keys("\n".join(rutas_docs))
+        print("  Archivos enviados al input de carga.")
 
     def _publicar_sin_documentos(self):
         """

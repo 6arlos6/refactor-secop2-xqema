@@ -10,8 +10,9 @@ Ejecucion:
 Prerequisito: el registro de CASO_PRUEBA debe existir en la hoja BASE_DATOS_BYS
 con 'Proceso 4' completado (con URL) y 'Proceso 5' vacio (o se sobreescribira con la URL nueva).
 
-NOTA: Este paso usa pyautogui para adjuntar archivos (ventana nativa de Windows).
-Asegurese de NO mover el mouse ni cambiar de ventana mientras se ejecuta.
+HEADLESS_MODE (env): False → Chrome visible; True → headless (sin interfaz grafica).
+El adjunte de archivos usa Selenium file input directo, sin pyautogui ni GUI del OS.
+Ambos modos son compatibles.
 """
 import os
 import sys
@@ -28,7 +29,7 @@ from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
 from seleniumbase import Driver
-from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE
+from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE
 
 
 # ---------------------------------------------------------------------------
@@ -101,15 +102,15 @@ def test_documentos():
 
         # 2. Navegador + login
         print("\nIniciando Chrome...")
-        driver = Driver(headless=False)
+        driver = Driver(headless=HEADLESS_MODE)
+        print(f"Chrome iniciado {'(headless)' if HEADLESS_MODE else '(visible)'}.")
         print("Ejecutando login...")
         login_page = LoginPage(driver)
         login_page.iniciar_sesion()
         print(f"Login OK — URL: {driver.current_url}\n")
 
         # 3. Paso 5: adjuntar documentos y publicar
-        print(">> PASO 5: Adjuntar documentos (OnBase + pyautogui) y publicar")
-        print("   ATENCION: No mueva el mouse ni cambie de ventana durante este paso.\n")
+        print(">> PASO 5: Adjuntar documentos (OnBase + Selenium file input) y publicar")
 
         url_publicada, fecha_publicacion = DocumentosPage(driver).adjuntar_y_publicar(
             url_proceso_4=datos['estado_proceso_4'],

@@ -23,7 +23,10 @@ def obtener_ruta_base():
 # --- RUTAS DEL PROYECTO ---
 BASE_DIR = obtener_ruta_base()
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-DOWNLOAD_DIR = os.path.join(BASE_DIR, 'documentos')
+
+# DOWNLOAD_DIR: configurable via env (DOWNLOAD_DIR=ruta) o por defecto documentos/ del proyecto.
+_download_env = os.getenv('DOWNLOAD_DIR', '').strip("'\"")
+DOWNLOAD_DIR = _download_env if _download_env else os.path.join(BASE_DIR, 'documentos')
 
 # Crear la carpeta de descargas si no existe
 if not os.path.exists(DOWNLOAD_DIR):
@@ -59,6 +62,9 @@ CASO_PRUEBA = os.getenv('CASO_PRUEBA', '450014145888-PRUEBA').strip("'\"")
 # de documentos lo usa en lugar del numero derivado del nombre del proceso.
 # Permite testear la descarga con un contrato real sin cambiar CASO_PRUEBA.
 NUMERO_CONTRATO_ONBASE = os.getenv('NUMERO_CONTRATO_ONBASE', '').strip("'\"")
+
+# HEADLESS_MODE: True → Chrome sin interfaz grafica (compatible desde que se elimino pyautogui).
+HEADLESS_MODE = os.getenv('HEADLESS_MODE', 'False').strip("'\"").lower() == 'true'
 
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [
