@@ -12,7 +12,7 @@ env_path = os.path.join(root_dir, 'env')
 load_dotenv(env_path)
 
 from pages.login_page import LoginPage
-from config.settings import URL_LOGIN_SECOP
+from config.settings import URL_LOGIN_SECOP, HEADLESS_MODE
 from seleniumbase import SB
 
 def test_login():
@@ -23,7 +23,7 @@ def test_login():
     # Iniciar el ChromeDriver 
     print("Iniciando navegador Chrome usando SeleniumBase...")
     try:
-        with SB(headless=False) as sb:
+        with SB(headless=HEADLESS_MODE) as sb:
             # Inicializar el Page Object
             login_page = LoginPage(sb)
             

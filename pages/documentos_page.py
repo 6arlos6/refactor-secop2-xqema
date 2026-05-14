@@ -46,9 +46,11 @@ class DocumentosPage(BasePage):
         print("Iniciando proceso de documentos y publicacion...")
 
         # Navegar y click en tab documentos — click_limpio porque vortal-preloader
-        # intercepta el click nativo igual que en cuestionario_page
+        # intercepta el click nativo igual que en cuestionario_page.
+        # SAVE_TIMEOUT (40 s) en lugar de LONG_TIMEOUT (20 s): en headless la carga
+        # completa del proceso puede tardar mas que en modo visible.
         self.driver.get(url_proceso_4)
-        self.esperar_y_click_limpio(self.BTN_DOCUMENTOS, timeout=LONG_TIMEOUT)
+        self.esperar_y_click_limpio(self.BTN_DOCUMENTOS, timeout=SAVE_TIMEOUT)
 
         # Descargar documentos de OnBase (linea 682 — usa su propio driver)
         onbase = OnBasePage()
@@ -83,21 +85,38 @@ class DocumentosPage(BasePage):
         # El popup DocumentAlternateUpload expone input[type="file" multiple].
         self._cargar_archivos_via_input(rutas_docs)
 
-        # Click en boton upload (lineas 735-737)
-        self.esperar_y_click_por_id(self.BTN_UPLOAD_FILES)
+        # Pausa necesaria para que SECOP II procese la seleccion de archivos antes del upload.
+        # El original tenia time.sleep(8) tras el paste de portapapeles — mismo proposito.
+        time.sleep(5)
 
-        # Esperar que todos los documentos se clasifiquen como "Documento anexo" (lineas 740-757)
+        # Click en boton upload (lineas 735-737).
+        # Se usa ActionChains directo sobre self.driver (no sb.click) porque estamos en una
+        # ventana popup abierta via driver.switch_to.window() y SeleniumBase puede perder
+        # el contexto de ventana. ActionChains sobre el driver subyacente siempre sigue el
+        # contexto activo del driver.
+        from selenium.webdriver.common.action_chains import ActionChains
+        btn_upload = self._wait(LONG_TIMEOUT).until(
+            EC.element_to_be_clickable((By.ID, self.BTN_UPLOAD_FILES))
+        )
+        ActionChains(self.driver).move_to_element(btn_upload).click().perform()
+        time.sleep(3)  # pausa tras click de upload (igual que el original, linea 738)
+
+        # Esperar que todos los documentos se clasifiquen como "Documento anexo" (lineas 740-757).
+        # Timeout extendido a 120 s: 22 archivos en headless puede tardar mas que en modo visible.
         tbody = self.esperar_presente(self.TABLA_ARCHIVOS)
         tr_elements = tbody.find_elements(By.TAG_NAME, 'tr')
         num_tr = len(tr_elements)
+        print(f"  Popup: {num_tr} fila(s) en tabla. Esperando clasificacion 'Documento anexo'...")
 
-        # Esperar clasificacion de todos los docs (con timeout para no quedar en loop infinito)
-        self._wait(60).until(
+        self._wait(120).until(
             lambda d: len(d.find_elements(By.XPATH, '//span[text()="Documento anexo"]')) >= num_tr
         )
 
-        # Cerrar modal (lineas 760-763)
-        self.esperar_y_click_por_id(self.BTN_CERRAR_MODAL)
+        # Cerrar modal (lineas 760-763) — driver directo por mismo motivo que btn_upload
+        btn_cerrar = self._wait(LONG_TIMEOUT).until(
+            EC.element_to_be_clickable((By.ID, self.BTN_CERRAR_MODAL))
+        )
+        ActionChains(self.driver).move_to_element(btn_cerrar).click().perform()
         self.driver.switch_to.window(self.driver.window_handles[0])
 
         # Esperar carga de documentos anexados (lineas 765-767).
@@ -171,6 +190,18 @@ class DocumentosPage(BasePage):
 
         # Enviar todas las rutas de una vez (\n como separador para multiple files)
         input_file.send_keys("\n".join(rutas_docs))
+
+        # Disparar evento 'change' explicitamente para que el framework de SECOP II
+        # registre la seleccion de archivos. Se usa querySelector dentro del script
+        # (no arguments[0]) porque send_keys puede hacer que SECOP II reconstruya el
+        # input en el DOM, dejando la referencia Python stale antes de execute_script.
+        try:
+            self.driver.execute_script(
+                "var el = document.querySelector('input[type=\"file\"]');"
+                "if (el) el.dispatchEvent(new Event('change', {bubbles: true}));"
+            )
+        except Exception:
+            pass  # Si falla el dispatchEvent, continuar — send_keys ya disparó change internamente
         print("  Archivos enviados al input de carga.")
 
     def _publicar_sin_documentos(self):

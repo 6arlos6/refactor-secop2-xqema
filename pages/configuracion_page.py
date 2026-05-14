@@ -270,15 +270,17 @@ class ConfiguracionPage(BasePage):
         """
         print("Avanzando a la seccion de configuracion...")
 
-        # Camino A: Aprobar proceso + confirmar PAA
+        # Camino A: Aprobar proceso + confirmar PAA.
+        # LONG_TIMEOUT (20 s) en lugar de DEFAULT_TIMEOUT (10 s): primer elemento tras
+        # navegacion necesita mas tiempo en headless para que el JS de SECOP II inicialice.
         try:
-            self.esperar_y_click_js(self.BTN_CONTINUAR, timeout=DEFAULT_TIMEOUT)
-            self.esperar_y_click_js(self.BTN_ACEPTAR_CONTINUAR, timeout=DEFAULT_TIMEOUT)
+            self.esperar_y_click_js(self.BTN_CONTINUAR, timeout=LONG_TIMEOUT)
+            self.esperar_y_click_js(self.BTN_ACEPTAR_CONTINUAR, timeout=LONG_TIMEOUT)
             print("  Avance via aprobacion de proceso.")
         except Exception:
             # Camino B: Flecha continuar (proceso ya aprobado)
             try:
-                self.esperar_y_click_js(self.FLECHA_CONTINUAR, timeout=DEFAULT_TIMEOUT)
+                self.esperar_y_click_js(self.FLECHA_CONTINUAR, timeout=LONG_TIMEOUT)
                 print("  Avance via flecha de continuacion.")
             except Exception:
                 print("  [AVISO] No se encontro boton de avance — posiblemente ya estamos en configuracion.")

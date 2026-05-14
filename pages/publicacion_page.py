@@ -11,6 +11,7 @@ from seleniumbase import Driver
 from pages.login_page import LoginPage
 from pages.base_page import BasePage
 from utils.logger import log_step as print
+from config.settings import HEADLESS_MODE
 
 
 # Timeouts para la obtencion de enlace
@@ -40,8 +41,9 @@ class PublicacionPage:
         """
         print("Obteniendo enlace publico del proceso...")
 
-        driver = Driver(incognito=True, headless=False)
-        driver.maximize_window()
+        driver = Driver(incognito=True, headless=HEADLESS_MODE)
+        if not HEADLESS_MODE:
+            driver.maximize_window()
 
         try:
             # Login con driver independiente (lineas 1027)

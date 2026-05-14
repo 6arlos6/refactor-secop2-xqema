@@ -30,8 +30,9 @@ class CuestionarioPage(BasePage):
         self.driver.get(url_proceso_3)
 
         # Navegar al tab de cuestionario — usa click_limpio porque vortal-preloader
-        # intercepta el click nativo inmediatamente tras la navegacion
-        self.esperar_y_click_limpio(self.BTN_CUESTIONARIO, timeout=LONG_TIMEOUT)
+        # intercepta el click nativo inmediatamente tras la navegacion.
+        # SAVE_TIMEOUT (40 s): en headless la carga inicial del proceso puede tardar mas.
+        self.esperar_y_click_limpio(self.BTN_CUESTIONARIO, timeout=SAVE_TIMEOUT)
 
         # Expandir campos (reemplaza time.sleep(5) + click)
         self.esperar_y_click(self.BTN_EXPANDIR, timeout=LONG_TIMEOUT)

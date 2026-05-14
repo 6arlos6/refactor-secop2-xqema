@@ -27,7 +27,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from utils.logger import log_step as print
 from utils.mappers import TIPOLOGIAS_EXCLUIDAS, NOMBRES_EXCLUIDOS
-from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR
+from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR, HEADLESS_MODE
 
 
 # Timeouts para OnBase (aplicacion lenta con iframes anidados)
@@ -57,8 +57,14 @@ class OnBasePage:
             "download.directory_upgrade": True,
             "plugins.always_open_pdf_externally": True
         })
+        if HEADLESS_MODE:
+            # --headless=new: modo headless moderno de Chrome (compatible con descargas)
+            options.add_argument('--headless=new')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--disable-gpu')
         self.driver = webdriver.Chrome(options=options)
-        self.driver.maximize_window()
+        if not HEADLESS_MODE:
+            self.driver.maximize_window()
 
     def _wait(self, timeout=ONBASE_TIMEOUT):
         return WebDriverWait(self.driver, timeout, poll_frequency=0.5)
@@ -121,8 +127,21 @@ class OnBasePage:
             print("OnBase: entrando a NavPanelIFrame...")
             self._wait().until(EC.frame_to_be_available_and_switch_to_it((By.ID, "NavPanelIFrame")))
             time.sleep(2)  # contenido del frame necesita tiempo para cargarse
+
+            # En headless, div.js-queryEmptyState puede quedar superpuesto sobre itemLabel133
+            # e interceptar el click nativo. Esperar a que desaparezca antes de intentar el click.
+            try:
+                self._wait(10).until(
+                    EC.invisibility_of_element_located((By.CLASS_NAME, "js-queryEmptyState"))
+                )
+            except Exception:
+                pass  # Si el div no existe o no desaparece, continuar con JS click
+
             print("OnBase: haciendo click en itemLabel133...")
-            self._wait().until(EC.element_to_be_clickable((By.ID, 'itemLabel133'))).click()
+            el_item = self._wait().until(EC.presence_of_element_located((By.ID, 'itemLabel133')))
+            # JS click: bypasea la intercepcion de overlays (necesario en headless donde el
+            # layout puede diferir del modo visible y dejar divs superpuestos sobre el target)
+            self.driver.execute_script("arguments[0].click();", el_item)
             self.driver.switch_to.default_content()
             time.sleep(5)  # OnBase tarda ~5s en cargar frmViewer tras seleccionar item del menu
 

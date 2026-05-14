@@ -14,7 +14,7 @@ from utils.mappers import extraer_datos_fila
 from utils.logger import log_step as print
 from config.settings import (
     BD_NAME, WORKSHEET_NAME, NOMBRE_ESTACION,
-    CREDENCIALES_JSON, GOOGLE_SCOPES
+    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE
 )
 
 from pages.login_page import LoginPage
@@ -64,8 +64,9 @@ class OrquestadorRPA:
         # Levantar el navegador con SeleniumBase Driver
         # (expone sb.open, sb.click, sb.type, sb.js_click, etc. — requerido por BasePage)
         print("Levantando Chrome...")
-        driver = Driver(headless=False, incognito=True)
-        driver.maximize_window()
+        driver = Driver(headless=HEADLESS_MODE, incognito=True)
+        if not HEADLESS_MODE:
+            driver.maximize_window()
 
         # Instanciar page objects (inyeccion de dependencias via driver)
         login_page = LoginPage(driver)

@@ -9,7 +9,7 @@ Migracion SeleniumBase (18/04/2026):
   - No WebDriverWait explícito, no time.sleep
 """
 from seleniumbase import Driver
-from pages.base_page import BasePage, LONG_TIMEOUT
+from pages.base_page import BasePage, LONG_TIMEOUT, SAVE_TIMEOUT
 from utils.execution_context import ExecutionContext
 from utils.logger import log_step as print
 from config.settings import URL_LOGIN_SECOP, USUARIO_SECOP, PASS_SECOP
@@ -49,8 +49,10 @@ class LoginPage(BasePage):
         # Click en boton login (sb.click espera clickeable con retry)
         self.esperar_y_click_por_id(self.BTN_LOGIN)
 
-        # Esperar redireccion post-login sin time.sleep ni WebDriverWait
-        self.esperar_url_contiene(self.URL_FRAGMENT_POST_LOGIN, timeout=LONG_TIMEOUT)
+        # Esperar redireccion post-login.
+        # SECOP II tarda entre 5-40 s segun carga del servidor y modo headless/visible.
+        # SAVE_TIMEOUT (40 s) da margen suficiente sin esperar indefinidamente.
+        self.esperar_url_contiene(self.URL_FRAGMENT_POST_LOGIN, timeout=SAVE_TIMEOUT)
 
         ExecutionContext.set_logged_in(True)
         print(f"Sesion iniciada correctamente — URL: {self.url_actual}")
