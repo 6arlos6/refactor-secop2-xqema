@@ -50,7 +50,7 @@ from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
 from config.settings import (
     CASO_PRUEBA, BD_NAME, WORKSHEET_NAME,
-    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE
+    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS
 )
 
 # Numero de pasos a ejecutar (1-5). Configurable via env: N_PASOS_TEST=3
@@ -115,6 +115,7 @@ def test_orquestador():
         print("Ejecutando en modo sin ventana (Headless)")
     else:
         print("Ejecutando con interfaz grafica visible")
+    print(f"Sin documentos OnBase: {'publicar igual (PUBLICAR_SIN_DOCUMENTOS=True)' if PUBLICAR_SIN_DOCUMENTOS else 'detener proceso (PUBLICAR_SIN_DOCUMENTOS=False)'}")
 
     try:
         with SB(headless=headless_mode) as sb:

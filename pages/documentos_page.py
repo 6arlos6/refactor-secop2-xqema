@@ -57,12 +57,21 @@ class DocumentosPage(BasePage):
         lista_documentos = onbase.descargar_documentos(numero_contrato)
         if len(lista_documentos) == 0:
             from utils.execution_context import ExecutionContext
+            from config.settings import PUBLICAR_SIN_DOCUMENTOS
+            print("ADVERTENCIA: OnBase no retorno documentos para este contrato.")
+            print("  Posibles causas: contrato de prueba sin documentos, credenciales incorrectas,")
+            print("  o expediente no encontrado en OnBase.")
+            if not PUBLICAR_SIN_DOCUMENTOS:
+                raise Exception(
+                    "OnBase no retorno documentos y PUBLICAR_SIN_DOCUMENTOS=False. "
+                    "El proceso NO sera publicado. "
+                    "Revise OnBase o establezca PUBLICAR_SIN_DOCUMENTOS=True en el archivo env "
+                    "para publicar igualmente sin documentos."
+                )
             ExecutionContext.add_warning(
                 "Proceso publicado SIN documentos adjuntos (OnBase no retorno archivos)"
             )
-            print("ADVERTENCIA: OnBase no retorno documentos para este contrato.")
-            print("  Posibles causas: contrato de prueba sin documentos, credenciales incorrectas,")
-            print("  o expediente no encontrado. El proceso se publicara SIN adjuntar documentos.")
+            print("  Publicando sin documentos (PUBLICAR_SIN_DOCUMENTOS=True).")
             url_publicada = self._publicar_sin_documentos()
             return url_publicada, ahora
 

@@ -70,6 +70,14 @@ NUMERO_CONTRATO_ONBASE = os.getenv('NUMERO_CONTRATO_ONBASE', '').strip("'\"")
 # HEADLESS_MODE: True → Chrome sin interfaz grafica (compatible desde que se elimino pyautogui).
 HEADLESS_MODE = os.getenv('HEADLESS_MODE', 'False').strip("'\"").lower() == 'true'
 
+# PUBLICAR_SIN_DOCUMENTOS:
+#   True  (default) → si OnBase no retorna documentos, publica el proceso igualmente
+#                      y registra una advertencia en ExecutionContext.
+#   False           → si OnBase no retorna documentos, lanza excepcion y NO publica.
+#                     En el orquestador: el registro se marca como error en Google Sheets.
+#                     En los tests: el test termina con error detallado.
+PUBLICAR_SIN_DOCUMENTOS = os.getenv('PUBLICAR_SIN_DOCUMENTOS', 'True').strip("'\"").lower() == 'true'
+
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',

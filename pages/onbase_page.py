@@ -237,14 +237,17 @@ class OnBasePage:
             time.sleep(3)  # pausa antes de context_click (igual que el original)
             self.driver.execute_script("arguments[0].scrollIntoView(true);", last_selected)
             time.sleep(1)  # esperar que el scroll se complete
-            # dispatchEvent contextmenu: ActionChains.context_click no abre menus
-            # personalizados en headless porque no hay cursor fisico que reactive el
-            # listener de boton-derecho. El evento MouseEvent con button:2 es equivalente.
-            self.driver.execute_script(
-                "arguments[0].dispatchEvent(new MouseEvent('contextmenu',"
-                "{bubbles:true,cancelable:true,button:2,buttons:2,view:window}));",
-                last_selected
-            )
+            # ActionChains.context_click es necesario aqui.
+            # OnBase intercepta el evento browser-level de boton derecho (contextmenu)
+            # para mostrar su menu personalizado. dispatchEvent('contextmenu') solo
+            # NO es suficiente: OnBase necesita la secuencia completa de mouse events
+            # (mousedown button:2 + mouseup + contextmenu) que ChromeDriver genera
+            # internamente al ejecutar ActionChains.context_click().
+            # En Chrome --headless=new (el modo que usa este driver), los mouse events
+            # de ActionChains funcionan correctamente porque el renderer esta activo
+            # aunque no haya ventana visible.
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(self.driver).context_click(last_selected).perform()
             time.sleep(3)  # menu contextual necesita tiempo para aparecer en el DOM
 
             self.driver.switch_to.default_content()

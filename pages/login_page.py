@@ -35,9 +35,12 @@ class LoginPage(BasePage):
         Original: funciones.py:52-70 — loguearse_secop(driver)
 
         SeleniumBase gestiona las esperas internamente:
-          - sb.type()   espera que el campo sea clickeable antes de escribir
-          - sb.click()  espera que el boton sea clickeable con retry automatico
-          - sb.wait_for_url_to_contain() reemplaza WebDriverWait + lambda
+          - sb.type()      espera que el campo sea clickeable antes de escribir
+          - js_click()     headless-compatible (original usaba ActionChains.click)
+          - esperar_url_contiene() reemplaza WebDriverWait + lambda url_contains
+
+        Diagnostico al fallar: muestra la URL actual para distinguir entre
+        pagina de error de SECOP, CAPTCHA, throttling del servidor, etc.
         """
         print("Iniciando sesion en SECOP II...")
         self.navegar_a(URL_LOGIN_SECOP)
@@ -46,13 +49,24 @@ class LoginPage(BasePage):
         self.esperar_y_escribir_por_id(self.INPUT_USUARIO,  USUARIO_SECOP, timeout=LONG_TIMEOUT)
         self.esperar_y_escribir_por_id(self.INPUT_PASSWORD, PASS_SECOP)
 
-        # Click en boton login (sb.click espera clickeable con retry)
-        self.esperar_y_click_por_id(self.BTN_LOGIN)
+        # JS click en BTN_LOGIN: el original usaba ActionChains.click(botonLogin).
+        # esperar_y_click_js es el equivalente headless-compatible (mismo patron que
+        # el resto de botones SECOP II refactorizados en este proyecto).
+        self.esperar_y_click_js(self.BTN_LOGIN)
 
         # Esperar redireccion post-login.
         # SECOP II tarda entre 5-40 s segun carga del servidor y modo headless/visible.
         # SAVE_TIMEOUT (40 s) da margen suficiente sin esperar indefinidamente.
-        self.esperar_url_contiene(self.URL_FRAGMENT_POST_LOGIN, timeout=SAVE_TIMEOUT)
+        try:
+            self.esperar_url_contiene(self.URL_FRAGMENT_POST_LOGIN, timeout=SAVE_TIMEOUT)
+        except Exception:
+            url_actual = self.url_actual
+            raise Exception(
+                f"Login no completado: la URL no contiene '{self.URL_FRAGMENT_POST_LOGIN}' "
+                f"tras {SAVE_TIMEOUT}s. URL actual: '{url_actual}'. "
+                f"Posibles causas: credenciales incorrectas, CAPTCHA en headless, "
+                f"throttling del servidor o mantenimiento de SECOP II."
+            )
 
         ExecutionContext.set_logged_in(True)
         print(f"Sesion iniciada correctamente — URL: {self.url_actual}")
