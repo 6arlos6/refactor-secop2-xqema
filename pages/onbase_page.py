@@ -23,6 +23,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from utils.logger import log_step as print
 from utils.mappers import TIPOLOGIAS_EXCLUIDAS, NOMBRES_EXCLUIDOS
 from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR, HEADLESS_MODE
@@ -191,18 +193,28 @@ class OnBasePage:
             filas = tabla.find_elements(By.TAG_NAME, "tr")
             print(f"OnBase: tabla encontrada con {len(filas)} filas. Seleccionando documentos...")
 
-            # Deseleccionar primer elemento con CTRL+click via MouseEvent JS.
-            # ActionChains.key_down(CTRL) no persiste de forma confiable en headless porque
-            # no hay un estado de teclado fisico — el evento se pierde antes del click.
-            # dispatchEvent con ctrlKey:true es el equivalente headless-compatible.
-            self.driver.execute_script(
-                "arguments[0].dispatchEvent(new MouseEvent('click',"
-                "{bubbles:true,cancelable:true,ctrlKey:true,view:window}));",
-                filas[0]
-            )
+            # Seleccion de documentos con CTRL+click via ActionChains atomico.
+            #
+            # Por que ActionChains en lugar de dispatchEvent(ctrlKey:true):
+            #   Los eventos JS sinteticos (dispatchEvent) NO son reconocidos por la grilla
+            #   de OnBase para la seleccion multiple. OnBase usa listeners que validan que
+            #   el evento venga del navegador (isTrusted:true). Los eventos sinteticos tienen
+            #   isTrusted:false y la grilla los ignora para la seleccion, por lo que aunque
+            #   last_selected queda asignado, 0 documentos estan realmente seleccionados
+            #   y SendToFile genera un ZIP vacio / no genera archivo.
+            #
+            # Por que funciona ActionChains en --headless=new Chrome:
+            #   key_down(CTRL).click(el).key_up(CTRL).perform() es una cadena ATOMICA:
+            #   ChromeDriver ejecuta los tres pasos en una sola llamada sin soltar el estado
+            #   de teclado entre ellos. Esto es diferente al original (dos .perform() separados)
+            #   y funciona correctamente en headless porque el renderer de Chrome esta activo.
+            #
+            # Deseleccionar primer elemento (limpia seleccion previa de la grilla)
+            ActionChains(self.driver).key_down(Keys.CONTROL).click(filas[0]).key_up(Keys.CONTROL).perform()
             time.sleep(1)  # grid procesa la deseleccion
 
             last_selected = None
+            docs_seleccionados = 0
 
             for item in range(len(filas)):
                 tipologia = self.driver.find_element(
@@ -218,14 +230,13 @@ class OnBasePage:
                 if (not tipologia_excluida) or (tipologia.strip() == "CERTIFICADO DE ANTECEDENTES" and not nombre_excluido):
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", filas[item])
                     time.sleep(0.5)  # scroll debe completarse antes del click
-                    # CTRL+click via MouseEvent: seleccion multiple sin cursor fisico
-                    self.driver.execute_script(
-                        "arguments[0].dispatchEvent(new MouseEvent('click',"
-                        "{bubbles:true,cancelable:true,ctrlKey:true,view:window}));",
-                        filas[item]
-                    )
+                    # CTRL+click atomico: mantiene CTRL activo durante todo el click
+                    ActionChains(self.driver).key_down(Keys.CONTROL).click(filas[item]).key_up(Keys.CONTROL).perform()
                     time.sleep(1)  # grid procesa la seleccion antes del siguiente item
                     last_selected = filas[item]
+                    docs_seleccionados += 1
+
+            print(f"OnBase: {docs_seleccionados} documento(s) seleccionado(s) de {len(filas)} filas.")
 
             # === DESCARGAR COMO ZIP (lineas 910-933) ===
             if not last_selected:
