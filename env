@@ -8,7 +8,7 @@ PASS_ONBASE= 'Sidisa192024*'
 URL_ONBASE='https://gestiondocumental.udea.edu.co/AppNet/Login.aspx'
 URL_LOGIN_SECOP='https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE'
 URL_SECOP='https://www.secop.gov.co/CO1BusinessLine/ProcedureProfile/ProcedureProfileOptions/Index'
-CASO_PRUEBA='583211414586866281-PRUEBA2BORRAR'
+CASO_PRUEBA='61211414586866281-PRUEBA2BORRAR'
 # Numero de contrato a buscar en OnBase. Si se define, sobreescribe el numero
 # derivado del nombre del proceso. Util para testear con un contrato real
 # que si tenga documentos en OnBase (ej: un contrato de produccion pasado).
@@ -19,3 +19,14 @@ HEADLESS_MODE=True
 # Path absoluto de descarga/descompresion de documentos OnBase.
 # Si no se define, se usa automaticamente la carpeta documentos/ del proyecto.
 # DOWNLOAD_DIR=C:\ruta\personalizada\documentos
+# Comportamiento cuando OnBase no retorna documentos para un contrato:
+#   True  → publica el proceso sin documentos y registra advertencia en el log.
+#   False → detiene el proceso sin publicar (error en GSheets / traceback en test).
+PUBLICAR_SIN_DOCUMENTOS=True
+# Numero de pasos a ejecutar en test_orquestador.py (1-5).
+#   1 = Solo Creacion del proceso
+#   2 = Hasta Informacion general
+#   3 = Hasta Configuracion del proceso
+#   4 = Hasta Cuestionario
+#   5 = Pipeline completo (Documentos y publicacion)
+N_PASOS_TEST=5

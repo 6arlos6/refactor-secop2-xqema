@@ -50,11 +50,9 @@ from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
 from config.settings import (
     CASO_PRUEBA, BD_NAME, WORKSHEET_NAME,
-    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS
+    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE,
+    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST
 )
-
-# Numero de pasos a ejecutar (1-5). Configurable via env: N_PASOS_TEST=3
-N_PASOS_TEST = int(os.getenv('N_PASOS_TEST', '5'))
 
 
 # ---------------------------------------------------------------------------

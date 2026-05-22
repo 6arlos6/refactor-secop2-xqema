@@ -78,6 +78,14 @@ HEADLESS_MODE = os.getenv('HEADLESS_MODE', 'False').strip("'\"").lower() == 'tru
 #                     En los tests: el test termina con error detallado.
 PUBLICAR_SIN_DOCUMENTOS = os.getenv('PUBLICAR_SIN_DOCUMENTOS', 'True').strip("'\"").lower() == 'true'
 
+# N_PASOS_TEST: numero de pasos del pipeline a ejecutar en test_orquestador.py (1-5).
+#   1 = Solo Creacion del proceso
+#   2 = Hasta Informacion general
+#   3 = Hasta Configuracion del proceso
+#   4 = Hasta Cuestionario
+#   5 = Pipeline completo — Documentos y publicacion (default)
+N_PASOS_TEST = int(os.getenv('N_PASOS_TEST', '5').strip("'\""))
+
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
