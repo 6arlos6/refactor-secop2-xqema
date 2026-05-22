@@ -6,17 +6,16 @@ Reemplaza: automatizacion.py lineas 78-211 (ejecutar_procesos + loop principal)
 Patron: State Valve — cada paso solo se ejecuta si su columna de proceso
 esta vacia (no ejecutado) y no hay error previo en el registro.
 """
-from seleniumbase import Driver
-
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository, ConfigRepository
 from utils.execution_context import ExecutionContext
 from utils.mappers import extraer_datos_fila
 from utils.logger import log_step as print
 from config.settings import (
     BD_NAME, WORKSHEET_NAME, NOMBRE_ESTACION,
-    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE
+    CREDENCIALES_JSON, GOOGLE_SCOPES
 )
 
+from pages.base_page import BasePage
 from pages.login_page import LoginPage
 from pages.creacion_proceso_page import CreacionProcesoPage
 from pages.informacion_general_page import InformacionGeneralPage
@@ -64,9 +63,7 @@ class OrquestadorRPA:
         # Levantar el navegador con SeleniumBase Driver
         # (expone sb.open, sb.click, sb.type, sb.js_click, etc. — requerido por BasePage)
         print("Levantando Chrome...")
-        driver = Driver(headless=HEADLESS_MODE, incognito=True)
-        if not HEADLESS_MODE:
-            driver.maximize_window()
+        driver = BasePage.crear_driver(incognito=True)
 
         # Instanciar page objects (inyeccion de dependencias via driver)
         login_page = LoginPage(driver)

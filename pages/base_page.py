@@ -21,6 +21,9 @@ Referencia de arquitectura: archivos_de_apoyo/base_page.py
 from seleniumbase import BaseCase
 from utils.logger import log_step as print
 
+from seleniumbase import Driver
+from config.settings import HEADLESS_MODE
+
 # =========================================================================
 # TIMEOUTS CENTRALIZADOS
 # =========================================================================
@@ -372,3 +375,31 @@ class BasePage:
 
     def find_elements(self, by, value):
         return self.driver.find_elements(by, value)
+
+    # -----------------------------------------------------------------------
+    # FACTORY DE DRIVER — unico punto de creacion de Chrome en el proyecto
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def crear_driver(incognito=False):
+        """
+        Crea un Driver Chrome correctamente configurado segun HEADLESS_MODE.
+
+        Centraliza: headless, window size e incognito.
+        Los consumidores (tests, orquestador, paginas con driver propio) NUNCA
+        necesitan importar HEADLESS_MODE — solo llaman BasePage.crear_driver().
+
+        incognito=True: usado por orquestador (sesion limpia) y publicacion_page
+                        (sesion independiente para obtener enlace publico).
+
+        EXCEPCION — onbase_page.py: usa webdriver.Chrome nativo para poder
+        configurar prefs de descarga en tiempo de inicio. Maneja headless y
+        window size internamente. No usa esta factory.
+        """
+        
+        driver = Driver(headless=HEADLESS_MODE, incognito=incognito)
+        if HEADLESS_MODE:
+            driver.set_window_size(1920, 1080)
+        else:
+            driver.maximize_window()
+        return driver

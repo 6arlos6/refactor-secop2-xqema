@@ -22,8 +22,8 @@ from data.google_sheets_manager import GoogleSheetsConnection, ContratosReposito
 from utils.mappers import extraer_datos_fila
 from pages.login_page import LoginPage
 from pages.informacion_general_page import InformacionGeneralPage
-from seleniumbase import Driver
-from config.settings import CASO_PRUEBA, HEADLESS_MODE
+from pages.base_page import BasePage
+from config.settings import CASO_PRUEBA
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +94,8 @@ def test_informacion_general():
 
         # 2. Navegador + login
         print("\nIniciando Chrome...")
-        driver = Driver(headless=HEADLESS_MODE)
-        print(f"Chrome iniciado {'(headless)' if HEADLESS_MODE else '(visible)'}.")
+        driver = BasePage.crear_driver()
+        print("Chrome iniciado.")
         print("Ejecutando login...")
         login_page = LoginPage(driver)
         login_page.iniciar_sesion()

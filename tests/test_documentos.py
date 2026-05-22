@@ -10,9 +10,9 @@ Ejecucion:
 Prerequisito: el registro de CASO_PRUEBA debe existir en la hoja BASE_DATOS_BYS
 con 'Proceso 4' completado (con URL) y 'Proceso 5' vacio (o se sobreescribira con la URL nueva).
 
-HEADLESS_MODE (env): False → Chrome visible; True → headless (sin interfaz grafica).
+El modo headless se configura en el archivo env (HEADLESS_MODE).
 El adjunte de archivos usa Selenium file input directo, sin pyautogui ni GUI del OS.
-Ambos modos son compatibles.
+Headless y visible son ambos compatibles.
 """
 import os
 import sys
@@ -28,8 +28,8 @@ from utils.mappers import extraer_datos_fila
 from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
-from seleniumbase import Driver
-from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE
+from pages.base_page import BasePage
+from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE
 
 
 # ---------------------------------------------------------------------------
@@ -102,8 +102,8 @@ def test_documentos():
 
         # 2. Navegador + login
         print("\nIniciando Chrome...")
-        driver = Driver(headless=HEADLESS_MODE)
-        print(f"Chrome iniciado {'(headless)' if HEADLESS_MODE else '(visible)'}.")
+        driver = BasePage.crear_driver()
+        print("Chrome iniciado.")
         print("Ejecutando login...")
         login_page = LoginPage(driver)
         login_page.iniciar_sesion()

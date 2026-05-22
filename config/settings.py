@@ -24,6 +24,10 @@ def obtener_ruta_base():
 BASE_DIR = obtener_ruta_base()
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 
+
+# Buscar que sino exista la carpeta se crea. tener en cuenta
+# que el proceso que la ruta debe ser agnostico
+
 # DOWNLOAD_DIR: configurable via env (DOWNLOAD_DIR=ruta) o por defecto documentos/ del proyecto.
 _download_env = os.getenv('DOWNLOAD_DIR', '').strip("'\"")
 DOWNLOAD_DIR = _download_env if _download_env else os.path.join(BASE_DIR, 'documentos')

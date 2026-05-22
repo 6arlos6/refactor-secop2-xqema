@@ -7,11 +7,9 @@ NOTA: Este page object maneja su PROPIO driver Chrome independiente
 porque necesita una sesion limpia para obtener el enlace publico.
 """
 from selenium.webdriver.common.by import By
-from seleniumbase import Driver
 from pages.login_page import LoginPage
 from pages.base_page import BasePage
 from utils.logger import log_step as print
-from config.settings import HEADLESS_MODE
 
 
 # Timeouts para la obtencion de enlace
@@ -41,9 +39,7 @@ class PublicacionPage:
         """
         print("Obteniendo enlace publico del proceso...")
 
-        driver = Driver(incognito=True, headless=HEADLESS_MODE)
-        if not HEADLESS_MODE:
-            driver.maximize_window()
+        driver = BasePage.crear_driver(incognito=True)
 
         try:
             # Login con driver independiente (lineas 1027)
