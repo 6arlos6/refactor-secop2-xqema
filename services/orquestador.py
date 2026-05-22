@@ -6,16 +6,16 @@ Reemplaza: automatizacion.py lineas 78-211 (ejecutar_procesos + loop principal)
 Patron: State Valve — cada paso solo se ejecuta si su columna de proceso
 esta vacia (no ejecutado) y no hay error previo en el registro.
 """
+from seleniumbase import SB
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository, ConfigRepository
 from utils.execution_context import ExecutionContext
 from utils.mappers import extraer_datos_fila
 from utils.logger import log_step as print
 from config.settings import (
     BD_NAME, WORKSHEET_NAME, NOMBRE_ESTACION,
-    CREDENCIALES_JSON, GOOGLE_SCOPES
+    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE
 )
 
-from pages.base_page import BasePage
 from pages.login_page import LoginPage
 from pages.creacion_proceso_page import CreacionProcesoPage
 from pages.informacion_general_page import InformacionGeneralPage
@@ -60,21 +60,29 @@ class OrquestadorRPA:
         # Cargar ciudades/codigos en cache (se usa en InformacionGeneralPage)
         ciudades_codigos = self.config_repo.obtener_ciudades_codigos()
 
-        # Levantar el navegador con SeleniumBase Driver
-        # (expone sb.open, sb.click, sb.type, sb.js_click, etc. — requerido por BasePage)
-        print("Levantando Chrome...")
-        driver = BasePage.crear_driver(incognito=True)
+        # =========================================================
+        # INICIO DEL CICLO DE VIDA DEL NAVEGADOR
+        # =========================================================
+        print("Levantando motor de automatizacion web...")
+        headless_mode = HEADLESS_MODE   # bool de config/settings.py
 
-        # Instanciar page objects (inyeccion de dependencias via driver)
-        login_page = LoginPage(driver)
-        creacion_page = CreacionProcesoPage(driver)
-        info_page = InformacionGeneralPage(driver)
-        config_page = ConfiguracionPage(driver)
-        cuestionario_page = CuestionarioPage(driver)
-        documentos_page = DocumentosPage(driver)
-        publicacion_page = PublicacionPage()  # Maneja su propio driver Chrome
+        if headless_mode:
+            print("Ejecutando en modo sin ventana (Headless)")
+        else:
+            print("Ejecutando con interfaz grafica visible")
 
-        try:
+        with SB(headless=headless_mode) as sb:
+            sb.set_window_size(1920, 1080)
+
+            # Inicializar Page Objects inyectando el contexto de SeleniumBase (sb)
+            login_page        = LoginPage(sb)
+            creacion_page     = CreacionProcesoPage(sb)
+            info_page         = InformacionGeneralPage(sb)
+            config_page       = ConfiguracionPage(sb)
+            cuestionario_page = CuestionarioPage(sb)
+            documentos_page   = DocumentosPage(sb)
+            publicacion_page  = PublicacionPage()  # Maneja su propio driver Chrome (incognito)
+
             for registro in registros:
                 self._procesar_registro(
                     registro, fila=registro['_fila_excel'],
@@ -87,11 +95,6 @@ class OrquestadorRPA:
                     documentos_page=documentos_page,
                     publicacion_page=publicacion_page,
                 )
-        finally:
-            try:
-                driver.quit()
-            except Exception:
-                pass
 
         print("\nLote completado.")
 
@@ -215,7 +218,11 @@ class OrquestadorRPA:
             # -----------------------------------------------------------
             if not ExecutionContext.has_error() and datos['proceso_5'] != "":
                 self.repo.actualizar_estado_ejecucion(fila)
-                print(f"PROCESO '{nombre}' COMPLETADO EXITOSAMENTE.")
+                alertas = ExecutionContext.get_warnings()
+                if alertas:
+                    print(f"PROCESO '{nombre}' COMPLETADO CON ADVERTENCIAS: {' | '.join(alertas)}")
+                else:
+                    print(f"PROCESO '{nombre}' COMPLETADO EXITOSAMENTE.")
 
         except Exception as e:
             paso_actual = ExecutionContext.get_step()

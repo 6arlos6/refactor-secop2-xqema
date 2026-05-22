@@ -56,6 +56,10 @@ class DocumentosPage(BasePage):
         onbase = OnBasePage()
         lista_documentos = onbase.descargar_documentos(numero_contrato)
         if len(lista_documentos) == 0:
+            from utils.execution_context import ExecutionContext
+            ExecutionContext.add_warning(
+                "Proceso publicado SIN documentos adjuntos (OnBase no retorno archivos)"
+            )
             print("ADVERTENCIA: OnBase no retorno documentos para este contrato.")
             print("  Posibles causas: contrato de prueba sin documentos, credenciales incorrectas,")
             print("  o expediente no encontrado. El proceso se publicara SIN adjuntar documentos.")

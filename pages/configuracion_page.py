@@ -126,7 +126,7 @@ class ConfiguracionPage(BasePage):
             raise Exception("Error de cdps: La cantidad de cdps no coinciden con la cantidad de saldos")
 
         # 7. Agregar CDPs
-        self._agregar_cdps(codigo_cdp, saldo_cdp, tipo_cdp)
+        self._agregar_cdps(codigo_cdp, saldo_cdp, tipo_cdp, valor_estimado)
 
         # 8. Guardar
         return self._guardar_y_obtener_url()
@@ -149,14 +149,26 @@ class ConfiguracionPage(BasePage):
 
     def _click_action_chains(self, element_id):
         """
-        Realiza un clic usando ActionChains para mover el cursor y hacer clic nativo.
-        Esto dispara los eventos 'blur' de inputs previamente enfocados en SECOP II.
+        Clic en elemento que requiere disparar blur en inputs previamente enfocados.
+
+        Estrategia headless-compatible:
+          1. scrollIntoView — mueve el foco del navegador al elemento, disparando
+             el evento 'blur' de cualquier input que estuviera activo (mismo efecto
+             que move_to_element de ActionChains, pero sin cursor fisico).
+          2. JS click — mas confiable que ActionChains en modo headless porque no
+             depende de coordenadas del cursor ni del viewport fisico.
+
+        En modo visible funciona exactamente igual que en headless.
         """
         self.esperar_visible(f"#{element_id}", timeout=LONG_TIMEOUT)
         self.sb.sleep(1)
         el = self.driver.find_element("id", element_id)
-        from selenium.webdriver.common.action_chains import ActionChains
-        ActionChains(self.driver).move_to_element(el).click().perform()
+        # Scroll al elemento para disparar blur en inputs previos
+        self.driver.execute_script(
+            "arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", el
+        )
+        self.sb.sleep(0.3)
+        self.sb.js_click(f"#{element_id}")
         self._esperar_desbloqueo_ui()
 
     def _escribir_fecha(self, element_id, texto):
@@ -217,31 +229,35 @@ class ConfiguracionPage(BasePage):
 
     def _click_radio_dinamico(self, element_id):
         """
-        Hace un click nativo con reintentos para manejar re-renderizados del DOM (StaleElementReference).
+        Click con reintentos para manejar re-renderizados del DOM (StaleElementReference).
         Luego espera dinamicamente a que la UI de SECOP II se desbloquee.
+
+        Estrategia:
+          - Usa JS click como metodo principal: es confiable tanto en modo visible
+            como en headless (ActionChains falla silenciosamente en headless porque
+            no tiene cursor fisico, sin lanzar ninguna excepcion).
+          - Si js_click falla (StaleElement/ClickIntercepted), reintenta hasta 5 veces.
+          - scrollIntoView garantiza que el elemento sea visible antes del click.
         """
         selector = f"#{element_id}"
         from selenium.common.exceptions import StaleElementReferenceException, ElementClickInterceptedException
-        from selenium.webdriver.common.action_chains import ActionChains
-        
+
         for _ in range(5):
             try:
                 self.esperar_visible(selector, timeout=5)
                 self.eliminar_overlays()
                 el = self.driver.find_element("css selector", selector)
-                
+
                 # Desplazar al centro para evitar que cabeceras o footers tapen el click
                 self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
                 self.sb.sleep(0.5)
-                
-                ActionChains(self.driver).move_to_element(el).click().perform()
-                break # Click exitoso
+
+                # JS click: headless-compatible, no depende del cursor fisico
+                self.sb.js_click(selector)
+                break  # Click exitoso
             except (StaleElementReferenceException, ElementClickInterceptedException):
                 self.sb.sleep(1)
-        else:
-            # Fallback a js_click
-            self.sb.js_click(selector)
-            
+
         self._esperar_desbloqueo_ui()
 
     def _avanzar_a_configuracion(self):
@@ -387,26 +403,65 @@ class ConfiguracionPage(BasePage):
         
         self._escribir_como_humano(self.INPUT_SGR, valor_estimado)
 
-    def _agregar_cdps(self, codigos_cdp, saldos_cdp, tipo_cdp):
+    def _agregar_cdps(self, codigos_cdp, saldos_cdp, tipo_cdp, valor_estimado):
         """
         Lineas 536-575: Agrega los CDPs al proceso.
 
         Original envuelve el bucle completo en try/except y lanza
         "Error de cdps: No fue posible agregar CDP" si falla cualquier iteracion.
+
+        Calculo de saldo_comprometer:
+          SECOP II requiere que la suma de todos los "Saldo a comprometer" sea igual
+          al valor_estimado del proceso (campo "Valor total de Fuente de los recursos").
+          - Para 1 CDP:   saldo_comprometer = valor_estimado (completo).
+          - Para N CDPs:  distribucion proporcional al saldo disponible de cada CDP.
+                          El ultimo CDP absorbe el residuo del redondeo.
+          El campo "Saldo CDP" (INPUT_SALDO_CDP) sigue usando el saldo disponible del
+          certificado CDP tal como lo proporciona la hoja de Google Sheets.
         """
         print(f"Agregando {len(codigos_cdp)} CDP(s)...")
+
+        # Calcular saldo a comprometer por CDP (suma debe = valor_estimado)
+        valor_total = float(str(valor_estimado).replace(",", "").replace(".", "").strip() or 0)
+        total_saldo = sum(
+            float(str(s).replace(",", "").replace(".", "").strip() or 0)
+            for s in saldos_cdp
+        )
+
+        saldos_comprometer = []
+        acumulado = 0
+        for i, s in enumerate(saldos_cdp):
+            if i == len(saldos_cdp) - 1:
+                # Ultimo CDP absorbe el residuo del redondeo
+                comprometer = round(valor_total - acumulado)
+            else:
+                saldo_f = float(str(s).replace(",", "").replace(".", "").strip() or 0)
+                proporcion = saldo_f / total_saldo if total_saldo else (1 / len(saldos_cdp))
+                comprometer = round(valor_total * proporcion)
+                acumulado += comprometer
+            saldos_comprometer.append(str(int(comprometer)))
+
         try:
             for i in range(len(codigos_cdp)):
                 codigo = codigos_cdp[i].replace(" ", "")
                 saldo = saldos_cdp[i]
-                print(f"  CDP {i+1}/{len(codigos_cdp)}: codigo={codigo}, saldo={saldo}")
-                self._agregar_un_cdp(codigo, saldo, tipo_cdp)
+                comprometer = saldos_comprometer[i]
+                print(f"  CDP {i+1}/{len(codigos_cdp)}: codigo={codigo}, saldo={saldo}, comprometer={comprometer}")
+                self._agregar_un_cdp(codigo, saldo, comprometer, tipo_cdp)
         except Exception as e:
             raise Exception(f"Error de cdps: No fue posible agregar CDP — {str(e)}")
 
-    def _agregar_un_cdp(self, codigo, saldo, tipo_cdp):
+    def _agregar_un_cdp(self, codigo, saldo, saldo_comprometer, tipo_cdp):
         """
         Lineas 540-572: Agrega un CDP individual.
+
+        Parametros:
+          codigo           — codigo del CDP (ej: "1001408511")
+          saldo            — saldo disponible del certificado CDP (INPUT_SALDO_CDP)
+          saldo_comprometer — monto a comprometer de este CDP para el contrato
+                             (INPUT_SALDO_COMPROMETER). Calculado en _agregar_cdps
+                             para que la suma iguale al valor_estimado del proceso.
+          tipo_cdp         — "1"=CDP, "2"=Vigencias Futuras
 
         Original:
           - BTN_AGREGAR_CDP: ActionChains → js_click
@@ -424,13 +479,13 @@ class ConfiguracionPage(BasePage):
             self.esperar_y_click_js(self.RADIO_CDP)
         elif str(tipo_cdp) == "2":
             self.esperar_y_click_js(self.RADIO_VIGENCIAS_FUTURAS)
-            
+
         self._esperar_desbloqueo_ui()
 
         # Llenar datos usando el metodo nativo para simular al usuario
         self._escribir_como_humano(self.INPUT_CODIGO_CDP, codigo)
         self._escribir_como_humano(self.INPUT_SALDO_CDP, saldo)
-        self._escribir_como_humano(self.INPUT_SALDO_COMPROMETER, saldo)
+        self._escribir_como_humano(self.INPUT_SALDO_COMPROMETER, saldo_comprometer)
         self._escribir_como_humano(self.INPUT_SUBUNIDAD, "00-00-00")
 
         # Crear y volver al contenido principal
@@ -453,11 +508,16 @@ class ConfiguracionPage(BasePage):
             return []
 
     def _click_guardar(self):
-        """Mueve al boton guardar y hace click (ActionChains como el original)."""
-        self.esperar_visible(f"#{self.BTN_GUARDAR}")
-        btn_guardar = self.driver.find_element("id", self.BTN_GUARDAR)
-        from selenium.webdriver.common.action_chains import ActionChains
-        ActionChains(self.driver).move_to_element(btn_guardar).click().perform()
+        """
+        Click en el boton guardar.
+
+        Usa JS click (sb.js_click) en lugar de ActionChains porque:
+        - ActionChains requiere mover el cursor fisico, lo que falla silenciosamente
+          en modo headless (el elemento existe pero el click nunca se registra).
+        - esperar_y_click_js llama a sb.js_click que dispara el handler onclick/postForm
+          directamente via JavaScript — compatible con headless y modo visible.
+        """
+        self.esperar_y_click_js(self.BTN_GUARDAR, timeout=LONG_TIMEOUT)
 
     def _guardar_y_obtener_url(self):
         """

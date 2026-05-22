@@ -25,11 +25,11 @@ load_dotenv(os.path.join(root_dir, 'env'))
 
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository
 from utils.mappers import extraer_datos_fila
+from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
-from pages.base_page import BasePage
-from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE
+from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,6 @@ def init_repo():
 # ---------------------------------------------------------------------------
 
 def test_documentos():
-    driver = None
     print("=== INICIANDO TEST DOCUMENTOS Y PUBLICACION (PASO 5) ===\n")
     try:
         # 1. Datos desde Google Sheets
@@ -101,66 +100,65 @@ def test_documentos():
         print(f"  Proceso 4 (URL): '{datos['estado_proceso_4']}'")
 
         # 2. Navegador + login
+        headless_mode = HEADLESS_MODE
         print("\nIniciando Chrome...")
-        driver = BasePage.crear_driver()
-        print("Chrome iniciado.")
-        print("Ejecutando login...")
-        login_page = LoginPage(driver)
-        login_page.iniciar_sesion()
-        print(f"Login OK — URL: {driver.current_url}\n")
+        if headless_mode:
+            print("Ejecutando en modo sin ventana (Headless)")
+        else:
+            print("Ejecutando con interfaz grafica visible")
 
-        # 3. Paso 5: adjuntar documentos y publicar
-        print(">> PASO 5: Adjuntar documentos (OnBase + Selenium file input) y publicar")
+        with SB(headless=headless_mode) as sb:
+            sb.set_window_size(1920, 1080)
+            login_page = LoginPage(sb)
+            login_page.iniciar_sesion()
+            print(f"Login OK — URL: {sb.get_current_url()}\n")
 
-        url_publicada, fecha_publicacion = DocumentosPage(driver).adjuntar_y_publicar(
-            url_proceso_4=datos['estado_proceso_4'],
-            numero_contrato=numero_contrato
-        )
+            # 3. Paso 5: adjuntar documentos y publicar
+            print(">> PASO 5: Adjuntar documentos (OnBase + Selenium file input) y publicar")
 
-        # 4. Obtener enlace publico del proceso
-        print("\n>> Obteniendo enlace publico del proceso...")
-        enlace_publico = PublicacionPage().obtener_enlace(url_publicada)
+            url_publicada, fecha_publicacion = DocumentosPage(sb).adjuntar_y_publicar(
+                url_proceso_4=datos['estado_proceso_4'],
+                numero_contrato=numero_contrato
+            )
 
-        if not enlace_publico:
-            print("ADVERTENCIA: No se pudo obtener el enlace publico. Se guardara la URL interna.")
-            enlace_publico = url_publicada
+            # 4. Obtener enlace publico del proceso
+            print("\n>> Obteniendo enlace publico del proceso...")
+            enlace_publico = PublicacionPage().obtener_enlace(url_publicada)
 
-        # 5. Persistir en Google Sheets
-        print(f"\nActualizando 'Proceso 5' en fila {fila_excel}...")
-        repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 5', enlace_publico)
+            if not enlace_publico:
+                print("ADVERTENCIA: No se pudo obtener el enlace publico. Se guardara la URL interna.")
+                enlace_publico = url_publicada
 
-        # Guardar fecha de publicacion
-        fecha_str = f"{fecha_publicacion.day}/{fecha_publicacion.strftime('%m/%Y')}"
-        print(f"Actualizando fecha de publicacion: {fecha_str}...")
-        try:
-            repo.actualizar_celda_por_nombre(fila_excel, 'Fecha publicación', fecha_str)
-        except Exception:
-            # Si la columna no existe, intentar con nombre alternativo
+            # 5. Persistir en Google Sheets
+            print(f"\nActualizando 'Proceso 5' en fila {fila_excel}...")
+            repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 5', enlace_publico)
+
+            # Guardar fecha de publicacion
+            fecha_str = f"{fecha_publicacion.day}/{fecha_publicacion.strftime('%m/%Y')}"
+            print(f"Actualizando fecha de publicacion: {fecha_str}...")
             try:
-                repo.actualizar_celda_por_nombre(fila_excel, 'Fecha Publicacion', fecha_str)
-            except Exception as e_fecha:
-                print(f"Advertencia: No se pudo actualizar la fecha de publicacion: {e_fecha}")
+                repo.actualizar_celda_por_nombre(fila_excel, 'Fecha publicación', fecha_str)
+            except Exception:
+                try:
+                    repo.actualizar_celda_por_nombre(fila_excel, 'Fecha Publicacion', fecha_str)
+                except Exception as e_fecha:
+                    print(f"Advertencia: No se pudo actualizar la fecha de publicacion: {e_fecha}")
 
-        # Marcar como ejecutado
-        try:
-            repo.actualizar_celda_por_nombre(fila_excel, 'Ejecutado', 'SI')
-        except Exception as e_ejec:
-            print(f"Advertencia: No se pudo marcar como ejecutado: {e_ejec}")
+            # Marcar como ejecutado
+            try:
+                repo.actualizar_celda_por_nombre(fila_excel, 'Ejecutado', 'SI')
+            except Exception as e_ejec:
+                print(f"Advertencia: No se pudo marcar como ejecutado: {e_ejec}")
 
-        print(f"Google Sheets actualizado.")
-        print(f"Enlace guardado: {enlace_publico}")
+            print(f"Google Sheets actualizado.")
+            print(f"Enlace guardado: {enlace_publico}")
+
+            input("\nPresiona ENTER para cerrar el navegador...")
 
     except Exception as e:
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
-    finally:
-        if driver:
-            input("\nPresiona ENTER para cerrar el navegador...")
-            try:
-                driver.quit()
-            except Exception:
-                pass
 
     print("\n=== FIN TEST DOCUMENTOS Y PUBLICACION ===")
 

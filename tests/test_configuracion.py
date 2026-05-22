@@ -21,10 +21,10 @@ load_dotenv(os.path.join(root_dir, 'env'))
 
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository
 from utils.mappers import extraer_datos_fila
+from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.configuracion_page import ConfiguracionPage
-from pages.base_page import BasePage
-from config.settings import CASO_PRUEBA
+from config.settings import CASO_PRUEBA, HEADLESS_MODE
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,6 @@ def init_repo():
 # ---------------------------------------------------------------------------
 
 def test_configuracion():
-    driver = None
     print("=== INICIANDO TEST CONFIGURACION (PASO 3) ===\n")
     try:
         # 1. Datos desde Google Sheets
@@ -94,36 +93,36 @@ def test_configuracion():
         print(f"  -----------------------------------------")
 
         # 2. Navegador + login
+        headless_mode = HEADLESS_MODE
         print("\nIniciando Chrome...")
-        driver = BasePage.crear_driver()
-        print("Chrome iniciado.")
-        print("Ejecutando login...")
-        login_page = LoginPage(driver)
-        login_page.iniciar_sesion()
-        print(f"Login OK — URL: {driver.current_url}\n")
+        if headless_mode:
+            print("Ejecutando en modo sin ventana (Headless)")
+        else:
+            print("Ejecutando con interfaz grafica visible")
 
-        # 3. Paso 3: configuracion del proceso
-        print(">> PASO 3: Configuracion del proceso (fechas, presupuesto, CDPs)")
+        with SB(headless=headless_mode) as sb:
+            sb.set_window_size(1920, 1080)
+            login_page = LoginPage(sb)
+            login_page.iniciar_sesion()
+            print(f"Login OK — URL: {sb.get_current_url()}\n")
 
-        url_p3 = ConfiguracionPage(driver).configurar_proceso(datos)
+            # 3. Paso 3: configuracion del proceso
+            print(">> PASO 3: Configuracion del proceso (fechas, presupuesto, CDPs)")
 
-        # 4. Persistir en Google Sheets
-        print(f"\nActualizando 'Proceso 3' en fila {fila_excel}...")
-        repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 3', url_p3)
-        print(f"Google Sheets actualizado.")
-        print(f"URL guardada: {url_p3}")
+            url_p3 = ConfiguracionPage(sb).configurar_proceso(datos)
+
+            # 4. Persistir en Google Sheets
+            print(f"\nActualizando 'Proceso 3' en fila {fila_excel}...")
+            repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 3', url_p3)
+            print(f"Google Sheets actualizado.")
+            print(f"URL guardada: {url_p3}")
+
+            input("\nPresiona ENTER para cerrar el navegador...")
 
     except Exception as e:
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
-    finally:
-        if driver:
-            input("\nPresiona ENTER para cerrar el navegador...")
-            try:
-                driver.quit()
-            except Exception:
-                pass
 
     print("\n=== FIN TEST CONFIGURACION ===")
 

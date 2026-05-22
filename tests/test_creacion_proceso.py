@@ -20,10 +20,10 @@ load_dotenv(os.path.join(root_dir, 'env'))   # archivo se llama 'env', no '.env'
 
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository
 from utils.mappers import extraer_datos_fila
+from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.creacion_proceso_page import CreacionProcesoPage
-from pages.base_page import BasePage
-from config.settings import CASO_PRUEBA
+from config.settings import CASO_PRUEBA, HEADLESS_MODE
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,6 @@ def init_repo():
 # ---------------------------------------------------------------------------
 
 def test_creador_proceso():
-    driver = None
     print("=== INICIANDO TEST CREACION PROCESO (PASO 1) ===\n")
     try:
         # 1. Datos desde Google Sheets
@@ -75,39 +74,39 @@ def test_creador_proceso():
         print(f"  Unidad  : '{datos['unidad_contratacion']}'")
 
         # 2. Navegador + login
+        headless_mode = HEADLESS_MODE
         print("\nIniciando Chrome...")
-        driver = BasePage.crear_driver()
-        print("Chrome iniciado.")
-        print("Ejecutando login...")
-        login_page = LoginPage(driver)
-        login_page.iniciar_sesion()
-        print(f"Login OK — URL: {driver.current_url}\n")
+        if headless_mode:
+            print("Ejecutando en modo sin ventana (Headless)")
+        else:
+            print("Ejecutando con interfaz grafica visible")
 
-        # 3. Paso 1: creacion del proceso
-        print(">> PASO 1: Creacion del proceso")
+        with SB(headless=headless_mode) as sb:
+            sb.set_window_size(1920, 1080)
+            login_page = LoginPage(sb)
+            login_page.iniciar_sesion()
+            print(f"Login OK — URL: {sb.get_current_url()}\n")
 
-        url_p1 = CreacionProcesoPage(driver).crear_proceso(
-            datos['nombre_proceso'],
-            datos['unidad_contratacion']
-        )
+            # 3. Paso 1: creacion del proceso
+            print(">> PASO 1: Creacion del proceso")
 
-        # 4. Persistir en Google Sheets
-        print(f"\nActualizando 'Proceso 1' en fila {fila_excel}...")
-        repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 1', url_p1)
-        print(f"Google Sheets actualizado.")
-        print(f"URL guardada: {url_p1}")
+            url_p1 = CreacionProcesoPage(sb).crear_proceso(
+                datos['nombre_proceso'],
+                datos['unidad_contratacion']
+            )
+
+            # 4. Persistir en Google Sheets
+            print(f"\nActualizando 'Proceso 1' en fila {fila_excel}...")
+            repo.actualizar_celda_por_nombre(fila_excel, 'Proceso 1', url_p1)
+            print(f"Google Sheets actualizado.")
+            print(f"URL guardada: {url_p1}")
+
+            input("\nPresiona ENTER para cerrar el navegador...")
 
     except Exception as e:
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
-    finally:
-        if driver:
-            input("\nPresiona ENTER para cerrar el navegador...")
-            try:
-                driver.quit()
-            except Exception:
-                pass
 
     print("\n=== FIN TEST CREACION PROCESO ===")
 

@@ -21,10 +21,8 @@ import unidecode
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
 from utils.logger import log_step as print
 from utils.mappers import TIPOLOGIAS_EXCLUIDAS, NOMBRES_EXCLUIDOS
 from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR, HEADLESS_MODE
@@ -114,11 +112,21 @@ class OnBasePage:
                 pass
 
             # === NAVEGAR A CONSULTA PERSONALIZADA (lineas 853-860) ===
+            # Usa presence_of_element_located + JS click en lugar de element_to_be_clickable + .click().
+            # En headless, el boton del menu puede estar "presente" pero no superar el test
+            # de interactabilidad de Selenium (overflow, display, size en viewport headless).
+            # JS click bypasea esa comprobacion y funciona igual en headless y visible.
             print("OnBase: abriendo menu de navegacion...")
-            self._wait().until(EC.element_to_be_clickable((By.XPATH, "/html/body/header/section[1]/div[1]"))).click()
+            menu_nav = self._wait().until(
+                EC.presence_of_element_located((By.XPATH, "/html/body/header/section[1]/div[1]"))
+            )
+            self.driver.execute_script("arguments[0].click();", menu_nav)
             time.sleep(2)  # menu desplegable de OnBase necesita tiempo para animarse
             print("OnBase: abriendo consulta personalizada...")
-            self._wait().until(EC.element_to_be_clickable((By.XPATH, '//*[@id="customquery"]'))).click()
+            customquery = self._wait().until(
+                EC.presence_of_element_located((By.XPATH, '//*[@id="customquery"]'))
+            )
+            self.driver.execute_script("arguments[0].click();", customquery)
             time.sleep(2)  # panel de navegacion lateral necesita tiempo para cargarse
 
             # Frame de navegacion (lineas 857-861)
@@ -179,13 +187,19 @@ class OnBasePage:
 
             # === SELECCIONAR DOCUMENTOS (lineas 879-908) ===
             print("OnBase: esperando tabla de documentos (primaryHitlist_grid)...")
-            tabla = wait_resultados.until(EC.element_to_be_clickable((By.ID, 'primaryHitlist_grid')))
+            tabla = wait_resultados.until(EC.presence_of_element_located((By.ID, 'primaryHitlist_grid')))
             filas = tabla.find_elements(By.TAG_NAME, "tr")
             print(f"OnBase: tabla encontrada con {len(filas)} filas. Seleccionando documentos...")
 
-            # Deseleccionar primer elemento (lineas 886-889)
-            ActionChains(self.driver).key_down(Keys.CONTROL).perform()
-            filas[0].click()
+            # Deseleccionar primer elemento con CTRL+click via MouseEvent JS.
+            # ActionChains.key_down(CTRL) no persiste de forma confiable en headless porque
+            # no hay un estado de teclado fisico — el evento se pierde antes del click.
+            # dispatchEvent con ctrlKey:true es el equivalente headless-compatible.
+            self.driver.execute_script(
+                "arguments[0].dispatchEvent(new MouseEvent('click',"
+                "{bubbles:true,cancelable:true,ctrlKey:true,view:window}));",
+                filas[0]
+            )
             time.sleep(1)  # grid procesa la deseleccion
 
             last_selected = None
@@ -202,11 +216,14 @@ class OnBasePage:
                 tipologia_excluida = any(t == tipologia.strip() for t in TIPOLOGIAS_EXCLUIDAS)
 
                 if (not tipologia_excluida) or (tipologia.strip() == "CERTIFICADO DE ANTECEDENTES" and not nombre_excluido):
-                    ActionChains(self.driver).key_down(Keys.CONTROL).perform()
-                    time.sleep(1)  # CTRL debe estar activo antes del scroll/click
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", filas[item])
-                    self._wait().until(EC.element_to_be_clickable(filas[item]))
-                    filas[item].click()
+                    time.sleep(0.5)  # scroll debe completarse antes del click
+                    # CTRL+click via MouseEvent: seleccion multiple sin cursor fisico
+                    self.driver.execute_script(
+                        "arguments[0].dispatchEvent(new MouseEvent('click',"
+                        "{bubbles:true,cancelable:true,ctrlKey:true,view:window}));",
+                        filas[item]
+                    )
                     time.sleep(1)  # grid procesa la seleccion antes del siguiente item
                     last_selected = filas[item]
 
@@ -220,19 +237,26 @@ class OnBasePage:
             time.sleep(3)  # pausa antes de context_click (igual que el original)
             self.driver.execute_script("arguments[0].scrollIntoView(true);", last_selected)
             time.sleep(1)  # esperar que el scroll se complete
-            self._wait().until(EC.element_to_be_clickable(last_selected))
-            ActionChains(self.driver).context_click(last_selected).perform()
+            # dispatchEvent contextmenu: ActionChains.context_click no abre menus
+            # personalizados en headless porque no hay cursor fisico que reactive el
+            # listener de boton-derecho. El evento MouseEvent con button:2 es equivalente.
+            self.driver.execute_script(
+                "arguments[0].dispatchEvent(new MouseEvent('contextmenu',"
+                "{bubbles:true,cancelable:true,button:2,buttons:2,view:window}));",
+                last_selected
+            )
             time.sleep(3)  # menu contextual necesita tiempo para aparecer en el DOM
 
             self.driver.switch_to.default_content()
 
             # Menu contextual: Enviar -> Archivo (lineas 923-930)
-            menu_enviar = self._wait().until(EC.element_to_be_clickable((By.XPATH, '//*[@id="menuControl_25"]')))
-            ActionChains(self.driver).click(menu_enviar).perform()
+            # JS click en lugar de ActionChains.click: compatible con headless
+            menu_enviar = self._wait().until(EC.presence_of_element_located((By.XPATH, '//*[@id="menuControl_25"]')))
+            self.driver.execute_script("arguments[0].click();", menu_enviar)
             time.sleep(3)  # submenu necesita tiempo para cargarse
             ventanas_antes = set(self.driver.window_handles)
-            menu_archivo = self._wait().until(EC.element_to_be_clickable((By.XPATH, '//*[@id="menuControl_13"]')))
-            ActionChains(self.driver).click(menu_archivo).perform()
+            menu_archivo = self._wait().until(EC.presence_of_element_located((By.XPATH, '//*[@id="menuControl_13"]')))
+            self.driver.execute_script("arguments[0].click();", menu_archivo)
             time.sleep(3)  # esperar que aparezca la nueva pestana SendToFile.aspx
 
             # OnBase WS1 23.1.x abre SendToFile.aspx en una nueva pestana antes del download.
