@@ -257,7 +257,6 @@ class OnBasePage:
             # En Chrome --headless=new (el modo que usa este driver), los mouse events
             # de ActionChains funcionan correctamente porque el renderer esta activo
             # aunque no haya ventana visible.
-            from selenium.webdriver.common.action_chains import ActionChains
             ActionChains(self.driver).context_click(last_selected).perform()
             time.sleep(3)  # menu contextual necesita tiempo para aparecer en el DOM
 
