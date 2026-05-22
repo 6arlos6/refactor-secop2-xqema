@@ -104,6 +104,10 @@ class ConfiguracionPage(BasePage):
 
         print("Configurando proceso...")
         self.navegar_a(url_proceso_2)
+        # Esperar a que SECOP II inicialice la pagina antes de buscar botones de navegacion.
+        # El original tenia time.sleep(4) aqui. En headless la carga puede ser mas lenta:
+        # _esperar_desbloqueo_ui() espera a que desaparezcan los overlays blockUI/vortal-preloader.
+        self._esperar_desbloqueo_ui()
 
         # 1. Avanzar a la seccion de configuracion (aprobacion / flecha / modal)
         self._avanzar_a_configuracion()
@@ -294,9 +298,14 @@ class ConfiguracionPage(BasePage):
             self.esperar_y_click_js(self.BTN_ACEPTAR_CONTINUAR, timeout=LONG_TIMEOUT)
             print("  Avance via aprobacion de proceso.")
         except Exception:
-            # Camino B: Flecha continuar (proceso ya aprobado)
+            # Camino B: Flecha continuar (proceso ya aprobado).
+            # wait_for_element_present en lugar de wait_for_element_visible:
+            # el flecha lnk_stpmStepManager3 puede existir en el DOM antes de ser
+            # estrictamente "visible" para SeleniumBase (SECOP II lo renderiza con
+            # animaciones CSS). JS click funciona con presencia, sin requerir visibilidad.
             try:
-                self.esperar_y_click_js(self.FLECHA_CONTINUAR, timeout=LONG_TIMEOUT)
+                self.sb.wait_for_element_present(f"#{self.FLECHA_CONTINUAR}", timeout=LONG_TIMEOUT)
+                self.sb.js_click(f"#{self.FLECHA_CONTINUAR}")
                 print("  Avance via flecha de continuacion.")
             except Exception:
                 print("  [AVISO] No se encontro boton de avance — posiblemente ya estamos en configuracion.")
@@ -313,9 +322,11 @@ class ConfiguracionPage(BasePage):
 
         # Espera dinamica: el formulario de configuracion tarda en cargar tras el modal.
         # Original usa sleep(7)+sleep(1). Reemplazado con espera al primer radio visible.
+        # SAVE_TIMEOUT (40s) en lugar de LONG_TIMEOUT (20s): en headless con servidor lento
+        # el formulario puede tardar mas de 20s en renderizarse tras la navegacion.
         print("  Esperando carga del formulario de configuracion...")
         self.esperar_visible(
-            f"#{self.RADIO_DECRETO_248_NO}", timeout=LONG_TIMEOUT
+            f"#{self.RADIO_DECRETO_248_NO}", timeout=SAVE_TIMEOUT
         )
 
     def _configurar_opciones_regulatorias(self):
