@@ -16,7 +16,7 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, root_dir)
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(root_dir, 'env'))   # archivo se llama 'env', no '.env'
+load_dotenv(os.path.join(root_dir, '.env'))
 
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository
 from utils.mappers import extraer_datos_fila

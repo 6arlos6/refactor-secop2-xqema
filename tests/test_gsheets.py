@@ -9,7 +9,7 @@ from data.google_sheets_manager import GoogleSheetsConnection, ContratosReposito
 
 def init_repo():
     """Helper genérico para inicializar y retornar el repositorio."""
-    load_dotenv('env')
+    load_dotenv('.env')
     
     db_name = os.getenv("HOJA_DATOS", "DATOS_SECOP_II").strip("'")
     worksheet_name = os.getenv("WORKSHEET", "BASE_DATOS_BYS").strip("'")

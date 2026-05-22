@@ -35,7 +35,7 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, root_dir)
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(root_dir, 'env'))
+load_dotenv(os.path.join(root_dir, '.env'))
 
 from seleniumbase import SB
 from data.google_sheets_manager import GoogleSheetsConnection, ContratosRepository, ConfigRepository

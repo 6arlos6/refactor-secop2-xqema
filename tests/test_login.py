@@ -6,9 +6,8 @@ import time
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, root_dir)
 
-# Cargar las variables desde el archivo 'env' de la raíz ANTES de importar los módulos del proyecto
 from dotenv import load_dotenv
-env_path = os.path.join(root_dir, 'env')
+env_path = os.path.join(root_dir, '.env')
 load_dotenv(env_path)
 
 from seleniumbase import SB

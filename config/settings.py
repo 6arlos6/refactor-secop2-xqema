@@ -3,9 +3,9 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# El archivo de entorno se llama 'env' (sin punto), no '.env'.
-# Buscamos primero relativo a este archivo (config/../env), luego en CWD como fallback.
-_env_path = os.path.join(os.path.dirname(__file__), '..', 'env')
+# El archivo de entorno se llama '.env'.
+# Buscamos primero relativo a este archivo (config/../.env), luego en CWD como fallback.
+_env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(_env_path):
     load_dotenv(_env_path)
 else:
