@@ -51,7 +51,7 @@ from pages.publicacion_page import PublicacionPage
 from config.settings import (
     CASO_PRUEBA, BD_NAME, WORKSHEET_NAME,
     CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE,
-    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST
+    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST, NUMERO_CONTRATO_ONBASE
 )
 
 
@@ -185,11 +185,11 @@ def test_orquestador():
                 print("\n>> PASO 5: Documentos y publicacion")
                 url_pub, fecha_pub = documentos_page.adjuntar_y_publicar(
                     url_proceso_4=datos['estado_proceso_4'],
-                    numero_contrato=datos['nombre_proceso']
+                    numero_contrato=NUMERO_CONTRATO_ONBASE
                 )
                 enlace = publicacion_page.obtener_enlace(url_pub) or url_pub
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 5', enlace)
-                repo.actualizar_celda_por_nombre(fila, 'Fecha Publicacion',
+                repo.actualizar_celda_por_nombre(fila, 'Fecha de publicación',
                                                  fecha_pub.strftime("%d/%m/%Y"))
                 datos['proceso_5'] = enlace
                 print(f"  Guardado: {enlace}")

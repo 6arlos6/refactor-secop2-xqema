@@ -108,8 +108,12 @@ class OnBasePage:
             self._wait().until(EC.element_to_be_clickable((By.ID, "loginButton"))).click()
 
             # Cerrar bloqueo si aparece (lineas 848-852)
+            # JS click: en headless el boton puede estar cubierto por un overlay CSS que
+            # hace fallar element_to_be_clickable + .click() nativo. JS click bypasea eso.
             try:
-                self._wait(5).until(EC.element_to_be_clickable((By.CLASS_NAME, "dialog-close"))).click()
+                el_close = self._wait(5).until(EC.presence_of_element_located((By.CLASS_NAME, "dialog-close")))
+                self.driver.execute_script("arguments[0].click();", el_close)
+                time.sleep(1)
             except Exception:
                 pass
 
@@ -167,7 +171,13 @@ class OnBasePage:
 
             print(f"OnBase: escribiendo numero de contrato '{numero_contrato}'...")
             self.driver.find_element(By.ID, 'Nombre expediente').send_keys(numero_contrato)
-            wait_largo.until(EC.element_to_be_clickable((By.ID, "save"))).click()
+            # JS click para el boton save: evita que un dialog-overlay del DOM padre
+            # (z-index 50001 en la pagina principal) intercepte el click nativo.
+            # El script se ejecuta en el contexto del iframe html_form y no es afectado
+            # por elementos del DOM padre. Usar presence_of_element_located (no
+            # element_to_be_clickable) porque el save ya debe existir al llegar aqui.
+            save_btn = wait_largo.until(EC.presence_of_element_located((By.ID, "save")))
+            self.driver.execute_script("arguments[0].click();", save_btn)
             self.driver.switch_to.default_content()
 
             # === NAVEGAR A RESULTADOS (lineas 873-879) ===
