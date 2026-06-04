@@ -71,10 +71,13 @@ def init_repo():
 # ---------------------------------------------------------------------------
 
 def test_orquestador():
-    print(f"=== TEST ORQUESTADOR — {N_PASOS_TEST} PASO(S) ===\n")
-    print(f"Caso de prueba: '{CASO_PRUEBA}'")
+    print(f"\n{'='*60}")
+    print(f"🤖 TEST ORQUESTADOR — {N_PASOS_TEST} PASO(S)")
+    print(f"{'='*60}")
+    print(f"📋 Caso de prueba : '{CASO_PRUEBA}'")
 
     # 1. Datos desde Google Sheets
+    print(f"\n📡 Conectando con Google Sheets...")
     repo, config_repo = init_repo()
 
     datos_crudos = repo.sheet.get_all_records()
@@ -86,7 +89,7 @@ def test_orquestador():
             break
 
     if not target:
-        print(f"ERROR: No se encontro el registro '{CASO_PRUEBA}' en Google Sheets.")
+        print(f"❌ ERROR: No se encontro el registro '{CASO_PRUEBA}' en Google Sheets.")
         return
 
     datos = extraer_datos_fila(target)
@@ -98,22 +101,26 @@ def test_orquestador():
 
     ciudades_codigos = config_repo.obtener_ciudades_codigos()
 
-    print(f"Fila: {fila} | Nombre: '{datos['nombre_proceso']}'")
-    print(f"Estado actual: "
-          f"P1={'OK' if datos['proceso_1'] else 'pendiente'} | "
-          f"P2={'OK' if datos['proceso_2'] else 'pendiente'} | "
-          f"P3={'OK' if datos['proceso_3'] else 'pendiente'} | "
-          f"P4={'OK' if datos['proceso_4'] else 'pendiente'} | "
-          f"P5={'OK' if datos['proceso_5'] else 'pendiente'}")
+    def _estado(val): return "✅ OK" if val else "⏳ pendiente"
+
+    print(f"📄 Fila: {fila} | Nombre: '{datos['nombre_proceso']}'")
+    print(f"📊 Estado actual:")
+    print(f"   P1={_estado(datos['proceso_1'])} | P2={_estado(datos['proceso_2'])} | "
+          f"P3={_estado(datos['proceso_3'])} | P4={_estado(datos['proceso_4'])} | "
+          f"P5={_estado(datos['proceso_5'])}")
 
     # 2. Navegador
     headless_mode = HEADLESS_MODE
-    print("\nLevantando motor de automatizacion web...")
+    print(f"\n{'─'*60}")
+    print(f"🌐 Levantando motor de automatizacion web...")
     if headless_mode:
-        print("Ejecutando en modo sin ventana (Headless)")
+        print(f"👻 Modo: Headless (sin ventana visible)")
     else:
-        print("Ejecutando con interfaz grafica visible")
-    print(f"Sin documentos OnBase: {'publicar igual (PUBLICAR_SIN_DOCUMENTOS=True)' if PUBLICAR_SIN_DOCUMENTOS else 'detener proceso (PUBLICAR_SIN_DOCUMENTOS=False)'}")
+        print(f"🖥️  Modo: Interfaz grafica visible")
+    if PUBLICAR_SIN_DOCUMENTOS:
+        print(f"📎 Sin docs OnBase: publicar de todas formas (PUBLICAR_SIN_DOCUMENTOS=True)")
+    else:
+        print(f"🚫 Sin docs OnBase: detener proceso (PUBLICAR_SIN_DOCUMENTOS=False)")
 
     try:
         with SB(headless=headless_mode) as sb:
@@ -135,39 +142,47 @@ def test_orquestador():
             # PASO 1: Creacion del proceso
             # ------------------------------------------------------------------
             if N_PASOS_TEST >= 1 and datos['proceso_1'] == "" and not ExecutionContext.has_error():
-                print("\n>> PASO 1: Creacion del proceso")
+                print(f"\n{'─'*60}")
+                print(f"🏗️  PASO 1/5 — Creacion del proceso")
+                print(f"{'─'*60}")
                 url = creacion_page.crear_proceso(
                     datos['nombre_proceso'], datos['unidad_contratacion']
                 )
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 1', url)
                 datos['proceso_1'] = datos['estado_proceso_1'] = url
-                print(f"  Guardado: {url}")
+                print(f"💾 Guardado en Sheets → {url}")
 
             # ------------------------------------------------------------------
             # PASO 2: Informacion general
             # ------------------------------------------------------------------
             if N_PASOS_TEST >= 2 and datos['proceso_2'] == "" and not ExecutionContext.has_error():
-                print("\n>> PASO 2: Informacion general")
+                print(f"\n{'─'*60}")
+                print(f"📝 PASO 2/5 — Informacion general")
+                print(f"{'─'*60}")
                 url = info_page.llenar_informacion_general(datos, ciudades_codigos)
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 2', url)
                 datos['proceso_2'] = datos['estado_proceso_2'] = url
-                print(f"  Guardado: {url}")
+                print(f"💾 Guardado en Sheets → {url}")
 
             # ------------------------------------------------------------------
             # PASO 3: Configuracion del proceso
             # ------------------------------------------------------------------
             if N_PASOS_TEST >= 3 and datos['proceso_3'] == "" and not ExecutionContext.has_error():
-                print("\n>> PASO 3: Configuracion del proceso")
+                print(f"\n{'─'*60}")
+                print(f"⚙️  PASO 3/5 — Configuracion del proceso")
+                print(f"{'─'*60}")
                 url = config_page.configurar_proceso(datos)
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 3', url)
                 datos['proceso_3'] = datos['estado_proceso_3'] = url
-                print(f"  Guardado: {url}")
+                print(f"💾 Guardado en Sheets → {url}")
 
             # ------------------------------------------------------------------
             # PASO 4: Cuestionario
             # ------------------------------------------------------------------
             if N_PASOS_TEST >= 4 and datos['proceso_4'] == "" and not ExecutionContext.has_error():
-                print("\n>> PASO 4: Cuestionario")
+                print(f"\n{'─'*60}")
+                print(f"📋 PASO 4/5 — Cuestionario")
+                print(f"{'─'*60}")
                 url = cuestionario_page.completar(
                     url_proceso_3=datos['estado_proceso_3'],
                     codigo=datos['codigo'],
@@ -176,13 +191,15 @@ def test_orquestador():
                 )
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 4', url)
                 datos['proceso_4'] = datos['estado_proceso_4'] = url
-                print(f"  Guardado: {url}")
+                print(f"💾 Guardado en Sheets → {url}")
 
             # ------------------------------------------------------------------
             # PASO 5: Adjuntar documentos y publicar
             # ------------------------------------------------------------------
             if N_PASOS_TEST >= 5 and datos['proceso_5'] == "" and not ExecutionContext.has_error():
-                print("\n>> PASO 5: Documentos y publicacion")
+                print(f"\n{'─'*60}")
+                print(f"📦 PASO 5/5 — Documentos y publicacion")
+                print(f"{'─'*60}")
                 url_pub, fecha_pub = documentos_page.adjuntar_y_publicar(
                     url_proceso_4=datos['estado_proceso_4'],
                     numero_contrato=NUMERO_CONTRATO_ONBASE
@@ -192,28 +209,36 @@ def test_orquestador():
                 repo.actualizar_celda_por_nombre(fila, 'Fecha de publicación',
                                                  fecha_pub.strftime("%d/%m/%Y"))
                 datos['proceso_5'] = enlace
-                print(f"  Guardado: {enlace}")
+                print(f"💾 Guardado en Sheets → {enlace}")
 
             # ------------------------------------------------------------------
-            # RESULTADO
+            # RESULTADO FINAL
             # ------------------------------------------------------------------
+            print(f"\n{'='*60}")
             alertas = ExecutionContext.get_warnings()
             if ExecutionContext.has_error():
-                print(f"\nPIPELINE FINALIZADO CON ERROR en paso: {ExecutionContext.get_step()}")
+                print(f"❌ PIPELINE FINALIZADO CON ERROR")
+                print(f"   Paso fallido: {ExecutionContext.get_step()}")
             elif alertas:
-                print(f"\nPIPELINE COMPLETADO CON ADVERTENCIAS: {' | '.join(alertas)}")
+                print(f"⚠️  PIPELINE COMPLETADO CON ADVERTENCIAS")
+                for a in alertas:
+                    print(f"   • {a}")
             else:
-                print(f"\nPIPELINE COMPLETADO EXITOSAMENTE (pasos 1-{N_PASOS_TEST})")
+                print(f"✅ PIPELINE COMPLETADO EXITOSAMENTE (pasos 1-{N_PASOS_TEST})")
+            print(f"{'='*60}")
 
-            input("\nPresiona ENTER para cerrar el navegador...")
+            input("\n⏎  Presiona ENTER para cerrar el navegador...")
             # SB cierra el browser automaticamente al salir del with
 
     except Exception as e:
         import traceback
-        print(f"\nERROR durante el test: {e}")
+        print(f"\n{'='*60}")
+        print(f"💥 ERROR INESPERADO durante el test:")
+        print(f"   {e}")
+        print(f"{'='*60}")
         traceback.print_exc()
 
-    print("\n=== FIN TEST ORQUESTADOR ===")
+    print(f"\n🏁 FIN TEST ORQUESTADOR\n")
 
 
 if __name__ == '__main__':

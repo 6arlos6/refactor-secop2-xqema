@@ -31,20 +31,41 @@ class PublicacionPage:
     SPAN_ENLACE = "//span[@id = 'spnPublicContractNoticeLink']"
     LABEL_ENLACE_FINAL = "//label[@id = 'lblDisplayPhaseLink_0']"
 
+    # Numero de intentos de login antes de rendirse
+    MAX_INTENTOS_LOGIN = 2
+
     def obtener_enlace(self, url):
         """
         Obtiene el enlace publico del proceso publicado.
         Retorna el texto del enlace o cadena vacia si falla.
         SIN escrituras a Google Sheets.
+
+        Login con reintento: SECOP II usa un STS (Identity Provider) que a veces
+        devuelve una pagina de error por "sesion expirada por inactividad" en la primera
+        solicitud (token de autenticacion generado con timestamp que puede vencer si el
+        proceso tardo varios minutos en los pasos anteriores). Un segundo intento con el
+        mismo driver (navegar_a() reinicia el flujo desde URL_LOGIN_SECOP) suele resolver
+        el problema sin crear un nuevo driver.
         """
+        import time
         print("Obteniendo enlace publico del proceso...")
 
         driver = BasePage.crear_driver(incognito=True)
 
         try:
-            # Login con driver independiente (lineas 1027)
+            # Login con driver independiente (lineas 1027) — con reintento
             login_page = LoginPage(driver)
-            login_page.iniciar_sesion()
+            for intento in range(1, self.MAX_INTENTOS_LOGIN + 1):
+                try:
+                    login_page.iniciar_sesion()
+                    break  # login exitoso
+                except Exception as e_login:
+                    if intento < self.MAX_INTENTOS_LOGIN:
+                        print(f"Login fallido (intento {intento}/{self.MAX_INTENTOS_LOGIN}): {e_login}")
+                        print(f"Reintentando login en 5s...")
+                        time.sleep(5)
+                    else:
+                        raise  # ultimo intento fallido — propagar al except externo
 
             driver.get(url)
             base = BasePage(driver)
@@ -55,14 +76,18 @@ class PublicacionPage:
                 print("Link de expediente no encontrado.")
                 return ''
 
-            base.esperar_y_click(self.LINK_EXPEDIENTE)
+            # JS click: en headless el vortal-preloader puede interceptar el click nativo.
+            # esperar_y_click_js_xpath elimina overlays (.blockUI, .vortal-preloader) via JS
+            # antes de hacer el click, igual que en los demas page objects de SECOP II.
+            base.esperar_y_click_js_xpath(self.LINK_EXPEDIENTE)
 
             # Buscar boton "Ver enlace" (lineas 1041-1048)
             if base.not_exist_element(self.BTN_VER_ENLACE, timeout=ENLACE_TIMEOUT):
                 print("Boton ver enlace no encontrado.")
                 return ''
 
-            base.esperar_y_click(self.BTN_VER_ENLACE)
+            # Mismo patron: JS click para evitar intercepcion por overlay.
+            base.esperar_y_click_js_xpath(self.BTN_VER_ENLACE)
 
             # Obtener texto del enlace (lineas 1051-1062)
             if base.not_exist_element(self.SPAN_ENLACE, timeout=ENLACE_TIMEOUT):
