@@ -3,3 +3,4 @@ documentos/
 __pycache__/funciones.cpython-311.pyc
 __pycache__/globales.cpython-311.pyc
 client_sheet.json
+venv/
