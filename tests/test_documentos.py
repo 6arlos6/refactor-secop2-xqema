@@ -29,7 +29,7 @@ from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
-from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS
+from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS, CHROME_ARGS, CHROME_BINARY
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ def test_documentos():
             print("Ejecutando con interfaz grafica visible")
         print(f"Modo sin documentos: {'publicar igualmente (PUBLICAR_SIN_DOCUMENTOS=True)' if PUBLICAR_SIN_DOCUMENTOS else 'detener proceso (PUBLICAR_SIN_DOCUMENTOS=False)'}")
 
-        with SB(headless=headless_mode) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
             sb.set_window_size(1920, 1080)
             login_page = LoginPage(sb)
             login_page.iniciar_sesion()

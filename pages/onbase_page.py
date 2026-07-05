@@ -27,7 +27,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from utils.logger import log_step as print
 from utils.mappers import TIPOLOGIAS_EXCLUIDAS, NOMBRES_EXCLUIDOS
-from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR, HEADLESS_MODE
+from config.settings import URL_ONBASE, USER_ONBASE, PASS_ONBASE, DOWNLOAD_DIR, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
 
 
 # Timeouts para OnBase (aplicacion lenta con iframes anidados)
@@ -57,6 +57,10 @@ class OnBasePage:
             "download.directory_upgrade": True,
             "plugins.always_open_pdf_externally": True
         })
+        for arg in CHROME_ARGS.split():
+            options.add_argument(arg)
+        if CHROME_BINARY:
+            options.binary_location = CHROME_BINARY
         if HEADLESS_MODE:
             # --headless=new: modo headless moderno de Chrome (compatible con descargas)
             options.add_argument('--headless=new')

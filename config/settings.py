@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import platform
 from dotenv import load_dotenv
 
 # El archivo de entorno se llama '.env'.
@@ -85,6 +86,11 @@ PUBLICAR_SIN_DOCUMENTOS = os.getenv('PUBLICAR_SIN_DOCUMENTOS', 'True').strip("'\
 #   4 = Hasta Cuestionario
 #   5 = Pipeline completo — Documentos y publicacion (default)
 N_PASOS_TEST = int(os.getenv('N_PASOS_TEST', '5').strip("'\""))
+
+# --- CHROME FLAGS Y BINARIO (Linux con snap requiere configuracion especial) ---
+CHROME_ARGS = "--no-sandbox --disable-dev-shm-usage" if platform.system() == "Linux" else ""
+_snap_chrome = "/snap/chromium/current/usr/lib/chromium-browser/chrome"
+CHROME_BINARY = _snap_chrome if platform.system() == "Linux" and os.path.exists(_snap_chrome) else ""
 
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [

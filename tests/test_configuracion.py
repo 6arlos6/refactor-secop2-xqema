@@ -24,7 +24,7 @@ from utils.mappers import extraer_datos_fila
 from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.configuracion_page import ConfiguracionPage
-from config.settings import CASO_PRUEBA, HEADLESS_MODE
+from config.settings import CASO_PRUEBA, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ def test_configuracion():
         else:
             print("Ejecutando con interfaz grafica visible")
 
-        with SB(headless=headless_mode) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
             sb.set_window_size(1920, 1080)
             login_page = LoginPage(sb)
             login_page.iniciar_sesion()

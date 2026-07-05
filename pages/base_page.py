@@ -22,7 +22,7 @@ from seleniumbase import BaseCase
 from utils.logger import log_step as print
 
 from seleniumbase import Driver
-from config.settings import HEADLESS_MODE
+from config.settings import HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
 
 # =========================================================================
 # TIMEOUTS CENTRALIZADOS
@@ -397,7 +397,12 @@ class BasePage:
         window size internamente. No usa esta factory.
         """
         
-        driver = Driver(headless=HEADLESS_MODE, incognito=incognito)
+        driver = Driver(
+            headless=HEADLESS_MODE,
+            incognito=incognito,
+            chromium_arg=CHROME_ARGS,
+            binary_location=CHROME_BINARY or None,
+        )
         if HEADLESS_MODE:
             driver.set_window_size(1920, 1080)
         else:

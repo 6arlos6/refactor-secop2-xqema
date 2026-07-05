@@ -12,7 +12,7 @@ load_dotenv(env_path)
 
 from seleniumbase import SB
 from pages.login_page import LoginPage
-from config.settings import URL_LOGIN_SECOP, HEADLESS_MODE
+from config.settings import URL_LOGIN_SECOP, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
 
 def test_login():
     print(f"Iniciando prueba de BasePage + LoginPage...")
@@ -27,7 +27,7 @@ def test_login():
         print("Ejecutando con interfaz grafica visible")
 
     try:
-        with SB(headless=headless_mode) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
             sb.set_window_size(1920, 1080)
             login_page = LoginPage(sb)
 

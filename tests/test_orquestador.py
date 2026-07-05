@@ -51,7 +51,7 @@ from pages.publicacion_page import PublicacionPage
 from config.settings import (
     CASO_PRUEBA, BD_NAME, WORKSHEET_NAME,
     CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE,
-    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST, NUMERO_CONTRATO_ONBASE
+    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST, NUMERO_CONTRATO_ONBASE, CHROME_ARGS, CHROME_BINARY
 )
 
 
@@ -123,7 +123,7 @@ def test_orquestador():
         print(f"🚫 Sin docs OnBase: detener proceso (PUBLICAR_SIN_DOCUMENTOS=False)")
 
     try:
-        with SB(headless=headless_mode) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
             sb.set_window_size(1920, 1080)
 
             # Inicializar Page Objects inyectando el contexto de SeleniumBase (sb)
