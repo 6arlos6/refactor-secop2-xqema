@@ -145,8 +145,12 @@ class DocumentosPage(BasePage):
         # Ir a publicar (lineas 769-776).
         # Si el proceso ya esta en la etapa de publicacion, este boton puede no existir.
         # En ese caso se salta directamente a BTN_PUBLICAR.
+        # Se usa esperar_presente + eliminar_overlays + js_click: blockUI puede cubrir el
+        # boton tras procesar documentos, haciendo que click nativo falle por no-visibilidad.
         try:
-            self.esperar_y_click(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+            self.esperar_presente(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+            self.eliminar_overlays()
+            self.sb.js_click(self.BTN_IR_PUBLICAR)
             try:
                 self.esperar_invisible(self.LOADING_INDICATOR, timeout=60)
             except Exception:
@@ -155,20 +159,36 @@ class DocumentosPage(BasePage):
             print("  [INFO] Boton 'Ir a publicar' no encontrado — saltando directo a Publicar.")
 
         # Publicar (lineas 778-782)
-        self.esperar_y_click(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
+        # Intento primario: click nativo con SAVE_TIMEOUT (40s). El click nativo es mas
+        # fiable que JS click para botones SECOP con form-submit handlers: dispara
+        # correctamente el ciclo completo de envio del formulario.
+        # Fallback a JS click solo si el elemento sigue sin ser visible tras 40s.
+        try:
+            self.esperar_y_click(self.BTN_PUBLICAR, timeout=SAVE_TIMEOUT)
+        except Exception:
+            self.esperar_presente(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
+            self.eliminar_overlays()
+            self.sb.sleep(2)  # pausa para que el DOM se estabilice tras eliminar overlay
+            self.sb.js_click(self.BTN_PUBLICAR)
 
         # Aceptar alerta si aparece (lineas 784-789)
         self.aceptar_alerta_si_existe(timeout=5)
 
         # Esperar cambio de URL (lineas 791-798)
+        # Algunos tipos de proceso (CO1.REQ) no redirigen tras publicar — en ese caso
+        # la URL de edicion es la mejor referencia disponible para el enlace publico.
+        url_antes = self.url_actual
         try:
-            url_antes = self.url_actual
             self._wait(50).until(EC.url_changes(url_antes))
         except Exception:
-            print("Advertencia: la URL no cambio durante el tiempo estipulado")
+            print("  [AVISO] La URL no cambio en 50s. Esperando 15s adicionales...")
+            try:
+                self._wait(15).until(EC.url_changes(url_antes))
+            except Exception:
+                print("  [AVISO] URL permanece en la pagina de edicion tras publicar.")
 
         url_publicada = self.url_actual
-        print("Proceso publicado exitosamente.")
+        print(f"Proceso publicado exitosamente. URL: {url_publicada}")
 
         return url_publicada, ahora
 
@@ -225,7 +245,9 @@ class DocumentosPage(BasePage):
         """
         print("Publicando proceso sin adjuntar documentos...")
 
-        self.esperar_y_click(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+        self.esperar_presente(self.BTN_IR_PUBLICAR, timeout=LONG_TIMEOUT)
+        self.eliminar_overlays()
+        self.sb.js_click(self.BTN_IR_PUBLICAR)
 
         # LOADING_INDICATOR puede no existir si no hubo carga de documentos — es opcional
         try:
@@ -233,7 +255,13 @@ class DocumentosPage(BasePage):
         except Exception:
             pass
 
-        self.esperar_y_click(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
+        try:
+            self.esperar_y_click(self.BTN_PUBLICAR, timeout=SAVE_TIMEOUT)
+        except Exception:
+            self.esperar_presente(self.BTN_PUBLICAR, timeout=LONG_TIMEOUT)
+            self.eliminar_overlays()
+            self.sb.sleep(2)
+            self.sb.js_click(self.BTN_PUBLICAR)
         self.aceptar_alerta_si_existe(timeout=5)
 
         try:

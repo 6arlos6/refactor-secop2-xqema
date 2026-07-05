@@ -82,17 +82,51 @@ class PublicacionPage:
             base.esperar_y_click_js_xpath(self.LINK_EXPEDIENTE)
 
             # Buscar boton "Ver enlace" (lineas 1041-1048)
-            if base.not_exist_element(self.BTN_VER_ENLACE, timeout=ENLACE_TIMEOUT):
-                print("Boton ver enlace no encontrado.")
-                return ''
+            # Timeout extendido: algunos tipos de proceso cargan el boton mas lento.
+            if base.not_exist_element(self.BTN_VER_ENLACE, timeout=ENLACE_LONG_TIMEOUT):
+                # El boton no aparecio. Intentar construir el enlace publico buscando
+                # el identificador CO1.NTC en el HTML de la pagina: SECOP siempre lo
+                # incluye en el DOM tras publicar, aunque el boton no sea visible.
+                import re as _re
+                try:
+                    match = _re.search(r'CO1\.NTC\.\d+', driver.page_source)
+                    if match:
+                        ntc_id = match.group(0)
+                        public_url = (
+                            "https://community.secop.gov.co/Public/Tendering/"
+                            f"OpportunityDetail/Index?noticeUID={ntc_id}"
+                            "&isFromPublicArea=True&isModal=False"
+                        )
+                        print(f"Enlace publico construido desde {ntc_id}: {public_url}")
+                        return public_url
+                except Exception:
+                    pass
+                url_fallback = driver.current_url
+                print(f"Boton ver enlace no encontrado. Guardando URL del expediente: {url_fallback}")
+                return url_fallback
 
             # Mismo patron: JS click para evitar intercepcion por overlay.
             base.esperar_y_click_js_xpath(self.BTN_VER_ENLACE)
 
             # Obtener texto del enlace (lineas 1051-1062)
             if base.not_exist_element(self.SPAN_ENLACE, timeout=ENLACE_TIMEOUT):
-                print("Span de enlace no encontrado.")
-                return ''
+                import re as _re
+                try:
+                    match = _re.search(r'CO1\.NTC\.\d+', driver.page_source)
+                    if match:
+                        ntc_id = match.group(0)
+                        public_url = (
+                            "https://community.secop.gov.co/Public/Tendering/"
+                            f"OpportunityDetail/Index?noticeUID={ntc_id}"
+                            "&isFromPublicArea=True&isModal=False"
+                        )
+                        print(f"Enlace publico construido desde {ntc_id}: {public_url}")
+                        return public_url
+                except Exception:
+                    pass
+                url_fallback = driver.current_url
+                print(f"Span de enlace no encontrado. Guardando URL actual: {url_fallback}")
+                return url_fallback
 
             texto_enlace = driver.find_element(By.XPATH, self.SPAN_ENLACE).text
 

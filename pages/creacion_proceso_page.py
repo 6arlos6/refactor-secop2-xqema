@@ -154,7 +154,18 @@ class CreacionProcesoPage(BasePage):
             lo recrea, el proximo llamado a _esperar_preloader lo eliminara.
           - El original usaba time.sleep(4) — un bloqueo bruto que cubria
             todas estas casuisticas.
+
+        Esperar que el preloader APAREZCA antes de quitarlo garantiza que el
+        iframe ya empezo a renderizar su contenido (evita race condition cuando
+        el iframe carga lento y el JS se ejecuta sobre un DOM vacio).
         """
+        # 0. Esperar que el preloader aparezca — confirma que el iframe cargo
+        #    Si nunca aparece (timeout 10s), igual continuamos (puede que cargue sin preloader)
+        try:
+            self.sb.wait_for_element_visible(self.PRELOADER, timeout=10)
+        except Exception:
+            pass
+
         # 1. Eliminar TODOS los preloaders del DOM via JS
         try:
             self.sb.execute_script("""

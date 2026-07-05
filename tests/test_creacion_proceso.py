@@ -23,7 +23,7 @@ from utils.mappers import extraer_datos_fila
 from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.creacion_proceso_page import CreacionProcesoPage
-from config.settings import CASO_PRUEBA, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
+from config.settings import CASO_PRUEBA, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY, PAGE_LOAD_STRATEGY
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def test_creador_proceso():
         else:
             print("Ejecutando con interfaz grafica visible")
 
-        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None, page_load_strategy=PAGE_LOAD_STRATEGY) as sb:
             sb.set_window_size(1920, 1080)
             login_page = LoginPage(sb)
             login_page.iniciar_sesion()

@@ -20,6 +20,7 @@ import zipfile
 import unidecode
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -47,8 +48,6 @@ class OnBasePage:
 
     def _inicializar_driver(self):
         """Crea un driver Chrome configurado para descargas automaticas."""
-        # webdriver.Chrome() sin Service usa selenium-manager (Selenium 4.10+)
-        # para encontrar el chromedriver — evita webdriver_manager y su WinError 193.
         # Las prefs se aplican en tiempo de inicio (mas confiable que CDP en runtime).
         options = Options()
         options.add_experimental_option('prefs', {
@@ -66,7 +65,15 @@ class OnBasePage:
             options.add_argument('--headless=new')
             options.add_argument('--window-size=1920,1080')
             options.add_argument('--disable-gpu')
-        self.driver = webdriver.Chrome(options=options)
+
+        # En Linux con snap Chromium, selenium-manager no usa el chromedriver de snap
+        # y falla al iniciar Chrome. Se usa el wrapper de snap explicitamente via Service.
+        import seleniumbase
+        import pathlib
+        _sb_drivers = pathlib.Path(seleniumbase.__file__).parent / "drivers" / "chromedriver"
+        service = Service(executable_path=str(_sb_drivers)) if _sb_drivers.exists() else None
+
+        self.driver = webdriver.Chrome(service=service, options=options)
         if not HEADLESS_MODE:
             self.driver.maximize_window()
 

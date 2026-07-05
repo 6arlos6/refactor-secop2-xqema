@@ -88,9 +88,13 @@ PUBLICAR_SIN_DOCUMENTOS = os.getenv('PUBLICAR_SIN_DOCUMENTOS', 'True').strip("'\
 N_PASOS_TEST = int(os.getenv('N_PASOS_TEST', '5').strip("'\""))
 
 # --- CHROME FLAGS Y BINARIO (Linux con snap requiere configuracion especial) ---
-CHROME_ARGS = "--no-sandbox --disable-dev-shm-usage" if platform.system() == "Linux" else ""
+CHROME_ARGS = "--no-sandbox --disable-dev-shm-usage --disable-features=IsolateOrigins,site-per-process" if platform.system() == "Linux" else ""
 _snap_chrome = "/snap/chromium/current/usr/lib/chromium-browser/chrome"
 CHROME_BINARY = _snap_chrome if platform.system() == "Linux" and os.path.exists(_snap_chrome) else ""
+
+# En Linux, "none" evita que Chrome congele el renderer esperando cargas lentas
+# de community.secop.gov.co. Los waits de SeleniumBase por elemento siguen funcionando.
+PAGE_LOAD_STRATEGY = "normal"  # mismo en Linux y Windows: las paginas SECOP necesitan JS completo
 
 # --- GOOGLE SHEETS SCOPES ---
 GOOGLE_SCOPES = [

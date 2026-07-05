@@ -237,6 +237,17 @@ class InformacionGeneralPage(BasePage):
         self.esperar_y_click_por_id(self.LINK_AGREGAR_PROCESOS)
 
         self.cambiar_a_frame(self.FRAME_RELACION_PROCESOS)
+
+        # Esperar que el iframe cargue su contenido antes de interactuar.
+        # Mismo patron que creacion_proceso_page._esperar_preloader():
+        # esperar que el preloader APAREZCA (confirma que el iframe empezo a renderizar)
+        # y luego eliminarlo del DOM para desbloquear los campos del formulario.
+        try:
+            self.sb.wait_for_element_visible("div.vortal-preloader", timeout=10)
+        except Exception:
+            pass  # El iframe puede cargar sin preloader — se continua igualmente
+        self.eliminar_overlays()
+
         self.esperar_y_escribir_por_id(self.INPUT_BUSQUEDA_PROCESO, contrato_marco, timeout=LONG_TIMEOUT)
         self.esperar_y_click_por_id(self.BTN_BUSCAR_PROCESO,   timeout=LONG_TIMEOUT)
         self.esperar_y_click_por_id(self.CHECK_RESULTADO,      timeout=LONG_TIMEOUT)
@@ -368,19 +379,23 @@ class InformacionGeneralPage(BasePage):
             self.escribir_y_seleccionar_primer_li(self.INPUT_LOCALIZACION, codigo_busqueda)
 
             # Correo electronico (campo Vortal — requiere inyeccion JS para disparar eventos)
-            correo_dummy = "correo_dummy@ejemplo.com"
+            # Usa el email real de los datos (igual que funciones.py original).
+            # Fallback a dummy si el email viene vacio o nulo.
+            correo_a_usar = (email or "").strip() or "correo_dummy@ejemplo.com"
+            # Escapar comillas simples para que el string JS sea valido
+            correo_js = correo_a_usar.replace("'", "\\'")
             try:
                 self.sb.wait_for_element_visible(f"#{self.INPUT_EMAIL}", timeout=5)
                 self.sb.execute_script(f"""
                     var el = document.getElementById('{self.INPUT_EMAIL}');
                     if(el) {{
-                        el.value = '{correo_dummy}';
+                        el.value = '{correo_js}';
                         el.dispatchEvent(new Event('input',  {{ bubbles: true }}));
                         el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         el.dispatchEvent(new Event('blur',   {{ bubbles: true }}));
                     }}
                 """)
-                print("  [OK] Correo dummy inyectado via JS")
+                print(f"  [OK] Correo inyectado via JS: {correo_a_usar}")
             except Exception as e:
                 print(f"  [AVISO] No se pudo inyectar el correo: {e}")
 
@@ -407,7 +422,17 @@ class InformacionGeneralPage(BasePage):
                     self.INPUT_BUSQUEDA_PROVEEDOR, documento, timeout=LONG_TIMEOUT
                 )
                 self.esperar_y_click_js(self.BTN_BUSCAR_PROVEEDOR, timeout=LONG_TIMEOUT)
-                self.esperar_y_click_por_id(self.LNK_SELECCIONAR, timeout=30)
+
+                # Verificar si el proveedor existe antes de intentar seleccionarlo.
+                # Si no hay resultado, el NIT no existe en SECOP y la creacion
+                # fallo por otra razon (NIT invalido, campos obligatorios, etc.).
+                if self.not_exist_element(f"#{self.LNK_SELECCIONAR}", timeout=LONG_TIMEOUT):
+                    raise Exception(
+                        f"Proveedor con NIT '{documento}' no encontrado en SECOP II "
+                        "y no pudo ser creado (error de validacion al intentar registrarlo). "
+                        "Verifique que el NIT sea valido y exista en el sistema de SECOP."
+                    )
+                self.esperar_y_click_por_id(self.LNK_SELECCIONAR, timeout=LONG_TIMEOUT)
                 self.volver_contenido_principal()
                 return
 
@@ -416,7 +441,12 @@ class InformacionGeneralPage(BasePage):
             # ----------------------------------------------------------------
             self.volver_contenido_principal()
             self.cambiar_a_frame(self.FRAME_SELECCION_CONTRATISTA)
-            self.esperar_y_click_por_id(self.LNK_SELECCIONAR, timeout=30)
+            if self.not_exist_element(f"#{self.LNK_SELECCIONAR}", timeout=LONG_TIMEOUT):
+                raise Exception(
+                    f"Proveedor con NIT '{documento}' creado pero no aparece en "
+                    "el frame de seleccion. SECOP puede estar procesando el registro."
+                )
+            self.esperar_y_click_por_id(self.LNK_SELECCIONAR, timeout=LONG_TIMEOUT)
             self.volver_contenido_principal()
 
         except Exception as e:

@@ -13,7 +13,8 @@ from utils.mappers import extraer_datos_fila
 from utils.logger import log_step as print
 from config.settings import (
     BD_NAME, WORKSHEET_NAME, NOMBRE_ESTACION,
-    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY
+    CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE, CHROME_ARGS, CHROME_BINARY,
+    PAGE_LOAD_STRATEGY
 )
 
 from pages.login_page import LoginPage
@@ -71,7 +72,7 @@ class OrquestadorRPA:
         else:
             print("Ejecutando con interfaz grafica visible")
 
-        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None) as sb:
+        with SB(headless=headless_mode, chromium_arg=CHROME_ARGS, binary_location=CHROME_BINARY or None, page_load_strategy=PAGE_LOAD_STRATEGY) as sb:
             sb.set_window_size(1920, 1080)
 
             # Inicializar Page Objects inyectando el contexto de SeleniumBase (sb)

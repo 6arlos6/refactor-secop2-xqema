@@ -466,42 +466,67 @@ class ConfiguracionPage(BasePage):
         """
         Lineas 540-572: Agrega un CDP individual.
 
+        IMPORTANTE — por que raw Selenium dentro del iframe:
+          Los metodos self.sb.* (SeleniumBase) restablecen internamente el contexto
+          de frame cuando se usan tras un driver.switch_to.frame() raw.
+          El resultado es que wait_for_element_visible() busca el elemento en el
+          contenido principal en lugar del iframe, fallando siempre.
+          Solucion: usar solo WebDriverWait/ActionChains raw dentro del iframe,
+          exactamente como hacia el original con funciones.py.
+
         Parametros:
           codigo           — codigo del CDP (ej: "1001408511")
-          saldo            — saldo disponible del certificado CDP (INPUT_SALDO_CDP)
-          saldo_comprometer — monto a comprometer de este CDP para el contrato
-                             (INPUT_SALDO_COMPROMETER). Calculado en _agregar_cdps
-                             para que la suma iguale al valor_estimado del proceso.
+          saldo            — saldo disponible del certificado CDP
+          saldo_comprometer — monto a comprometer (calculado en _agregar_cdps)
           tipo_cdp         — "1"=CDP, "2"=Vigencias Futuras
-
-        Original:
-          - BTN_AGREGAR_CDP: ActionChains → js_click
-          - Radios (CDP/Vigencias): ActionChains → js_click
-          - Campos: WebDriverWait + .send_keys() → sb.type()
-          - BTN_CREAR_CDP: ActionChains → js_click
-          - switch_to.default_content() al final de cada iteracion
         """
-        # Abrir modal CDP (ActionChains en original → js_click)
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.action_chains import ActionChains
+        from selenium.webdriver.common.keys import Keys
+
+        # 1. Abrir modal CDP (fuera del iframe — sb.* permitido aqui)
         self.esperar_y_click_js(self.BTN_AGREGAR_CDP)
-        self.cambiar_a_frame(self.FRAME_CDP)
+        self.sb.sleep(1)
 
-        # Seleccionar tipo CDP (ActionChains en original → js_click)
-        if str(tipo_cdp) == "1":
-            self.esperar_y_click_js(self.RADIO_CDP)
-        elif str(tipo_cdp) == "2":
-            self.esperar_y_click_js(self.RADIO_VIGENCIAS_FUTURAS)
+        # 2. Entrar al iframe usando raw Selenium con espera de disponibilidad
+        # frame_to_be_available_and_switch_to_it garantiza que el iframe exista
+        # y hace el switch en un solo paso, sin usar sb.* que resetean el contexto.
+        WebDriverWait(self.driver, LONG_TIMEOUT).until(
+            EC.frame_to_be_available_and_switch_to_it((By.ID, self.FRAME_CDP))
+        )
+        self.sb.sleep(3)  # El original usa sleep(3) aqui — el iframe carga lento
 
-        self._esperar_desbloqueo_ui()
+        # 3. Seleccionar tipo CDP (ActionChains como en el original)
+        radio_id = self.RADIO_CDP if str(tipo_cdp) == "1" else self.RADIO_VIGENCIAS_FUTURAS
+        radio = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, radio_id))
+        )
+        ActionChains(self.driver).move_to_element(radio).click().perform()
+        self.sb.sleep(1)
 
-        # Llenar datos usando el metodo nativo para simular al usuario
-        self._escribir_como_humano(self.INPUT_CODIGO_CDP, codigo)
-        self._escribir_como_humano(self.INPUT_SALDO_CDP, saldo)
-        self._escribir_como_humano(self.INPUT_SALDO_COMPROMETER, saldo_comprometer)
-        self._escribir_como_humano(self.INPUT_SUBUNIDAD, "00-00-00")
+        # 4. Llenar campos con raw WebDriverWait (sin sb.* para preservar frame context)
+        wait = WebDriverWait(self.driver, 20)
 
-        # Crear y volver al contenido principal
-        self._click_action_chains(self.BTN_CREAR_CDP)
-        self.volver_contenido_principal()
+        def _rellenar(field_id, valor):
+            el = wait.until(EC.element_to_be_clickable((By.ID, field_id)))
+            el.click()
+            el.send_keys(Keys.CONTROL + "a")
+            el.send_keys(Keys.DELETE)
+            el.send_keys(str(valor))
+
+        _rellenar(self.INPUT_CODIGO_CDP, codigo)
+        _rellenar(self.INPUT_SALDO_CDP, saldo)
+        _rellenar(self.INPUT_SALDO_COMPROMETER, saldo_comprometer)
+        _rellenar(self.INPUT_SUBUNIDAD, "00-00-00")
+
+        # 5. Confirmar CDP y salir del iframe
+        btn = wait.until(EC.element_to_be_clickable((By.ID, self.BTN_CREAR_CDP)))
+        ActionChains(self.driver).move_to_element(btn).click().perform()
+
+        self.driver.switch_to.default_content()
+        self.sb.sleep(1)  # Pausa equivalente al sleep(1) del original entre iteraciones
 
     def _verificar_errores_validacion(self):
         """
