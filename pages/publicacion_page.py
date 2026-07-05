@@ -67,8 +67,8 @@ class PublicacionPage:
                     else:
                         raise  # ultimo intento fallido — propagar al except externo
 
-            driver.get(url)
             base = BasePage(driver)
+            base.navegar_a(url)
 
             # Buscar link del expediente (lineas 1031-1038)
             # not_exist_element con timeout=100s reemplaza notExistElement(driver, 50, ...)
@@ -131,7 +131,7 @@ class PublicacionPage:
             texto_enlace = driver.find_element(By.XPATH, self.SPAN_ENLACE).text
 
             # Navegar al enlace y obtener el texto final (lineas 1057-1060)
-            driver.get(texto_enlace)
+            base.navegar_a(texto_enlace)
             base.esperar_visible(self.LABEL_ENLACE_FINAL, timeout=ENLACE_TIMEOUT)
             texto_enlace_real = driver.find_element(By.XPATH, self.LABEL_ENLACE_FINAL).text
 

@@ -1,45 +1,15 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 
-# === CONSTANTES DE EXCLUSION (extraidas de globales.py) ===
-TIPOLOGIAS_EXCLUIDAS = [
-    'CERTIFICADO DE ANTECEDENTES',
-    'DOCUMENTO DE IDENTIDAD',
-    'CERTIFICACIÓN BANCARIA',
-    'CERTIFICACION BANCARIA'
-]
-
-NOMBRES_EXCLUIDOS = [
-    'DELITOSSEXUALES',
-    'DELITOS_SEXUALES',
-    'DELITOS-SEXUALES',
-    'DELITOS SEXUALES',
-    'REGISTRO-DEUDORES-MOROSOS-ALIMENTARIOS',
-    'REGISTRO_DEUDORES_MOROSOS_ALIMENTARIOS',
-    'REGISTRO-DEUDORES-MOROSOS-ALIMENTARIOS',
-    'REGISTRODEUDORESMOROSOSALIMENTARIOS',
-    'DEUDORES-MOROSOS',
-    'DEUDORES_MOROSOS',
-    'DEUDORES MOROSOS',
-    'DEUDORESMOROSOS',
-    'REDAM'
-]
-
-# === DICCIONARIO DE NORMALIZACION DE TIPOLOGIA ===
-DICCIONARIO_NORMALIZACION_TIPOLOGIA = {
-    "Arrendamiento De Inmuebles": "Arrendamiento de muebles",
-    "Compraventa": "Compraventa",
-    "Prestación De Servicios": "Prestación de servicios",
-    "Obra": "Obra",
-    "Contrato De Arrendamiento": "Arrendamiento de muebles",
-    "Contrato De Compraventa": "Compraventa",
-    "Contrato de Prestación de Servicios": "Prestación de servicios",
-    "Contrato De Suministro": "Suministro",
-    "Suministro": "Suministro"
-}
-
-# === CARACTERES INVALIDOS PARA DESCRIPCION ===
-INVALID_CHARS = ['"', "'", "<", ">", "&", "%", "@", "$", "-", "#", "_", "–", "°", "º", "*", "±", "[", "]", "+", "•", "|", "–"]
+# Constantes de reglas de negocio (exclusion OnBase, normalizacion de tipologia,
+# caracteres invalidos) centralizadas en config/settings.py. Se re-exportan aqui
+# para no romper `from utils.mappers import TIPOLOGIAS_EXCLUIDAS, ...` en onbase_page.py.
+from config.settings import (
+    TIPOLOGIAS_EXCLUIDAS,
+    NOMBRES_EXCLUIDOS,
+    DICCIONARIO_NORMALIZACION_TIPOLOGIA,
+    INVALID_CHARS,
+)
 
 
 def obtener_dias(fecha_inicio: str, fecha_fin: str) -> str:

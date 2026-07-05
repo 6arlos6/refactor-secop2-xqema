@@ -123,7 +123,7 @@ class ConfiguracionPage(BasePage):
 
         # 5. SIIF = NO (linea 529-531, original usa ActionChains)
         print("Seleccionando SIIF = No...")
-        self._click_action_chains(self.RADIO_SIIF_NO)
+        self._click_disparando_blur(self.RADIO_SIIF_NO)
 
         # 6. Validar CDPs (lineas 532-534)
         if len(codigo_cdp) != len(saldo_cdp):
@@ -151,7 +151,7 @@ class ConfiguracionPage(BasePage):
         except Exception:
             pass
 
-    def _click_action_chains(self, element_id):
+    def _click_disparando_blur(self, element_id):
         """
         Clic en elemento que requiere disparar blur en inputs previamente enfocados.
 

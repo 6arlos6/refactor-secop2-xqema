@@ -27,7 +27,7 @@ class CuestionarioPage(BasePage):
         Original: funciones.py:600-657 — completar_cuestionario(params)
         """
         print("Completando cuestionario...")
-        self.driver.get(url_proceso_3)
+        self.navegar_a(url_proceso_3)
 
         # Navegar al tab de cuestionario — usa click_limpio porque vortal-preloader
         # intercepta el click nativo inmediatamente tras la navegacion.

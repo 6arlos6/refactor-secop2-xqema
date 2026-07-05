@@ -61,7 +61,14 @@ if not os.path.exists(CREDENCIALES_JSON):
 
 # --- CONFIGURACION DEL ROBOT ---
 NOMBRE_ESTACION = os.getenv('NOMBRE_ESTACION')
-CASO_PRUEBA = os.getenv('CASO_PRUEBA', '450014145888-PRUEBA').strip("'\"")
+
+# CASO_PRUEBA solo se usa en tests/ (no en produccion). Si no esta definido en .env,
+# se usa un valor por defecto pero se avisa explicitamente para evitar que el
+# ausente pase inadvertido durante la configuracion de un entorno de pruebas.
+_caso_prueba_env = os.getenv('CASO_PRUEBA')
+if _caso_prueba_env is None:
+    print("ADVERTENCIA: CASO_PRUEBA no esta definido en .env. Usando valor por defecto '450014145888-PRUEBA'.")
+CASO_PRUEBA = (_caso_prueba_env or '450014145888-PRUEBA').strip("'\"")
 
 # Override del numero de contrato para OnBase. Cuando esta definido, el test
 # de documentos lo usa en lugar del numero derivado del nombre del proceso.
@@ -102,3 +109,46 @@ GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/drive'
 ]
+
+# --- REGLAS DE NEGOCIO DE DOMINIO (centralizadas desde utils/mappers.py) ---
+
+# Tipologias y nombres de documento a excluir al filtrar la descarga de OnBase.
+# Extraidas originalmente de globales.py.
+TIPOLOGIAS_EXCLUIDAS = [
+    'CERTIFICADO DE ANTECEDENTES',
+    'DOCUMENTO DE IDENTIDAD',
+    'CERTIFICACIÓN BANCARIA',
+    'CERTIFICACION BANCARIA'
+]
+
+NOMBRES_EXCLUIDOS = [
+    'DELITOSSEXUALES',
+    'DELITOS_SEXUALES',
+    'DELITOS-SEXUALES',
+    'DELITOS SEXUALES',
+    'REGISTRO-DEUDORES-MOROSOS-ALIMENTARIOS',
+    'REGISTRO_DEUDORES_MOROSOS_ALIMENTARIOS',
+    'REGISTRO-DEUDORES-MOROSOS-ALIMENTARIOS',
+    'REGISTRODEUDORESMOROSOSALIMENTARIOS',
+    'DEUDORES-MOROSOS',
+    'DEUDORES_MOROSOS',
+    'DEUDORES MOROSOS',
+    'DEUDORESMOROSOS',
+    'REDAM'
+]
+
+# Normalizacion de tipo de contrato al valor esperado por el select de SECOP II.
+DICCIONARIO_NORMALIZACION_TIPOLOGIA = {
+    "Arrendamiento De Inmuebles": "Arrendamiento de muebles",
+    "Compraventa": "Compraventa",
+    "Prestación De Servicios": "Prestación de servicios",
+    "Obra": "Obra",
+    "Contrato De Arrendamiento": "Arrendamiento de muebles",
+    "Contrato De Compraventa": "Compraventa",
+    "Contrato de Prestación de Servicios": "Prestación de servicios",
+    "Contrato De Suministro": "Suministro",
+    "Suministro": "Suministro"
+}
+
+# Caracteres no permitidos en la descripcion del objeto del contrato.
+INVALID_CHARS = ['"', "'", "<", ">", "&", "%", "@", "$", "-", "#", "_", "–", "°", "º", "*", "±", "[", "]", "+", "•", "|", "–"]

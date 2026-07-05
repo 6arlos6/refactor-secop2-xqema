@@ -49,7 +49,7 @@ class DocumentosPage(BasePage):
         # intercepta el click nativo igual que en cuestionario_page.
         # SAVE_TIMEOUT (40 s) en lugar de LONG_TIMEOUT (20 s): en headless la carga
         # completa del proceso puede tardar mas que en modo visible.
-        self.driver.get(url_proceso_4)
+        self.navegar_a(url_proceso_4)
         self.esperar_y_click_limpio(self.BTN_DOCUMENTOS, timeout=SAVE_TIMEOUT)
 
         # Descargar documentos de OnBase (linea 682 — usa su propio driver)
