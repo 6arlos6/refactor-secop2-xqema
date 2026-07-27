@@ -47,6 +47,7 @@ def extraer_datos_fila(row: dict) -> dict:
     """
     codigo_cdp = deconstruir_cdps_saldos(row.get("Código CDP", ""))
     saldo_cdp = deconstruir_cdps_saldos(row.get("Saldo CDP", ""))
+    
 
     return {
         'nombre_proceso': str(row.get("Nombre", "")),
@@ -70,6 +71,10 @@ def extraer_datos_fila(row: dict) -> dict:
         'tipo_cdp': str(row.get("Tipo CDP", "")),
         'codigo_cdp': codigo_cdp,
         'saldo_cdp': saldo_cdp,
+        # Regalias (destinacion_gasto == "2")
+        'bpin': str(row.get("BPIN", "")),
+        'cdp_regalias': str(row.get("CDP Regalia", "")),
+        'anio_bpin': str(row.get("Vigencia BPIN", "")),
         # Estados de procesos previos
         'proceso_1': str(row.get("Proceso 1", "")),
         'proceso_2': str(row.get("Proceso 2", "")),

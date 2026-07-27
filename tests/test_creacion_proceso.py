@@ -48,6 +48,8 @@ def init_repo():
 
 def test_creador_proceso():
     print("=== INICIANDO TEST CREACION PROCESO (PASO 1) ===\n")
+    repo = None
+    fila_excel = 0
     try:
         # 1. Datos desde Google Sheets
         repo, ws_name = init_repo()
@@ -107,6 +109,8 @@ def test_creador_proceso():
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
+        if repo and fila_excel:
+            repo.reportar_error(fila_excel, str(e), "Paso 1: Creacion del proceso")
 
     print("\n=== FIN TEST CREACION PROCESO ===")
 

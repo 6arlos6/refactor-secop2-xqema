@@ -77,6 +77,37 @@ class ConfiguracionPage(BasePage):
     # Original usa ActionChains + wait por "Proceso guardado con éxito"
     BTN_GUARDAR = "btnSaveProcedureTop"
 
+    # === BPIN (destinacion_gasto == "2" = Inversion con Regalias) ===
+    # Extraido de proyecto-original-secob-garantias/funciones.py:541-661
+    CHK_BPIN_EXISTENTE          = "chkBPINCheckbox_0"
+    BTN_ELIMINAR_BPIN           = "btnDeleteBPINButton"
+    BTN_AGREGAR_BPIN            = "btnAddBPINButton"
+    INPUT_CODIGO_BPIN           = "txtBPINCodeValueTextBox_0"
+    SELECT_ANIO_BPIN            = "selBPINYearCombo_0"
+    BTN_CONSULTAR_BPIN          = "btnBPINConsultButton_0"
+    BTN_ACEPTAR_VALIDACION_BPIN = "btnBPINValidationOkButtonGen"
+    LABEL_ESTADO_BPIN           = "lblBPINStateValidLabel_0"
+
+    # === CDP de Regalias / SPGR (destinacion_gasto == "2") ===
+    # Extraido de proyecto-original-secob-garantias/funciones.py:663-757
+    CHK_INTEGRACION_SPGR = "chkSPGRIntegrationCheckbox_0"  # mismo checkbox: existencia previa e integracion
+    BTN_ELIMINAR_CDP_SPGR = "btnSPGRRemoveCDPButton"
+    BTN_AGREGAR_CDP_SPGR  = "btnSPGRAddCDPButton"
+    FRAME_CDP_SPGR        = "SPGRModal_iframe"
+    INPUT_CODIGO_CDP_SPGR = "txtCDPCodeTextbox"
+    SELECT_BPIN_EN_CDP    = "selBPINCodeSelect"
+    INPUT_VALOR_A_USAR    = "cbxValueToUseTextbox"
+    BTN_CREAR_CDP_SPGR    = "btnCreateButton"
+    BTN_CONSULTAR_SPGR    = "btnSPGRIntegrationButton"
+    BTN_VALIDAR_SPGR      = "btnValidateSPGRIntegrationButton"
+    XPATH_SPGR_CONSULTA_EXITOSA = (
+        "//table[@id='msgMessagesPanel']//td[@class='Message' and contains(text(), 'Consulta Exitosa')]"
+    )
+    XPATH_SPGR_VALIDACION_EXITOSA = (
+        "//table[@id='msgMessagesPanel']//td[@class='Message' and "
+        "contains(text(), 'Información SGR validada con éxito')]"
+    )
+
     # =========================================================================
     # METODO PRINCIPAL
     # =========================================================================
@@ -118,8 +149,8 @@ class ConfiguracionPage(BasePage):
         # 3. Fechas y valor estimado
         self._llenar_fechas_y_valor(fecha_firma, fecha_inicio, fecha_fin, valor_estimado)
 
-        # 4. Destinacion del gasto (Funcionamiento/Inversion)
-        self._configurar_destinacion_gasto(destinacion_gasto, valor_estimado)
+        # 4. Destinacion del gasto (Funcionamiento/Inversion/Regalias)
+        self._configurar_destinacion_gasto(destinacion_gasto, valor_estimado, datos)
 
         # 5. SIIF = NO (linea 529-531, original usa ActionChains)
         print("Seleccionando SIIF = No...")
@@ -360,17 +391,22 @@ class ConfiguracionPage(BasePage):
         self._escribir_fecha(self.INPUT_PLAZO_EJECUCION, fecha_fin)
         self._escribir_como_humano(self.INPUT_VALOR_ESTIMADO, valor_estimado)
 
-    def _configurar_destinacion_gasto(self, destinacion_gasto, valor_estimado):
+    def _configurar_destinacion_gasto(self, destinacion_gasto, valor_estimado, datos):
         """
         Lineas 461-527: Configura la destinacion del gasto y origen presupuestal.
 
         Original tiene time.sleep(2-3) entre cada radio button. En SeleniumBase,
         sb.wait_for_element_visible() + js_click gestionan la espera dinamicamente.
+
+        destinacion_gasto == "2" significa "Inversion financiada con Regalias (SGR)":
+        exige BPIN y ejecuta el flujo completo de BPIN + CDP de regalias via SPGR
+        (proyecto-original-secob-garantias/funciones.py:541-758) ademas de los
+        radios base de Inversion.
         """
         if str(destinacion_gasto) == "1":
             self._configurar_funcionamiento(valor_estimado)
         elif str(destinacion_gasto) == "2":
-            self._configurar_inversion(valor_estimado)
+            self._configurar_regalias(valor_estimado, datos)
         else:
             print(f"  [AVISO] Destinacion de gasto '{destinacion_gasto}' no reconocida. Saltando.")
 
@@ -413,6 +449,202 @@ class ConfiguracionPage(BasePage):
         self._click_radio_dinamico(self.RADIO_OTROS_REC_NO)
         
         self._escribir_como_humano(self.INPUT_SGR, valor_estimado)
+
+    def _configurar_regalias(self, valor_estimado, datos):
+        """
+        Destinacion = Inversion financiada con Regalias (SGR).
+
+        Original: proyecto-original-secob-garantias/funciones.py:541-758 — bloque
+        "AQUI INICIA LA LOGICA PARA DESTINACION DE GASTO 2 (REGALIAS)".
+        Requiere BPIN obligatoriamente (si no viene en la fila, se corta el
+        proceso con un error claro en vez de intentar continuar sin el).
+
+        Los radios base (PNG/SGP/SGR/RecPropios/RecCredito/OtrosRec) y el valor
+        SGR son identicos a _configurar_inversion() — se reutiliza en vez de
+        duplicar esa logica.
+        """
+        bpin = str(datos.get('bpin', '') or '').strip()
+        cdp_regalias = str(datos.get('cdp_regalias', '') or '').strip()
+        anio_bpin = str(datos.get('anio_bpin', '') or '').strip()
+        saldo_cdp = datos.get('saldo_cdp') or []
+
+        if not bpin:
+            raise Exception("No se cuenta con BPIN para rendir (destinacion de gasto = 2 requiere BPIN)")
+
+        print("  Configurando destinacion: Inversion con Regalias (BPIN/SPGR)...")
+        self._configurar_inversion(valor_estimado)
+
+        # Disparar change/blur en el campo SGR para que SECOP II habilite el
+        # formulario de BPIN (no se dispara solo con send_keys, se necesita Tab).
+        from selenium.webdriver.common.keys import Keys
+        campo_sgr = self.driver.find_element("id", self.INPUT_SGR)
+        campo_sgr.send_keys(Keys.TAB)
+        self.driver.execute_script(
+            "arguments[0].dispatchEvent(new Event('change', {bubbles: true}));"
+            "arguments[0].dispatchEvent(new Event('blur', {bubbles: true}));",
+            campo_sgr
+        )
+        self._esperar_desbloqueo_ui()
+
+        self._configurar_bpin(bpin, anio_bpin)
+        self._configurar_cdp_regalias(bpin, cdp_regalias, saldo_cdp)
+
+    def _configurar_bpin(self, bpin, anio_bpin):
+        """
+        Elimina un BPIN previo si existe, agrega uno nuevo, escribe el codigo,
+        selecciona la vigencia (año actual si no viene en la hoja) y consulta/
+        valida que quede en estado "Validado".
+
+        Todo ocurre en la pagina principal (fuera de iframes) — se reutilizan
+        los helpers sb.*-based ya existentes (_click_radio_dinamico, esperar_*).
+        """
+        from selenium.webdriver.common.keys import Keys
+        from selenium.webdriver.support.ui import Select
+        from datetime import datetime
+        import unicodedata
+
+        # Si ya existe un BPIN agregado, seleccionarlo y eliminarlo antes del nuevo.
+        try:
+            chk = self.driver.find_element("id", self.CHK_BPIN_EXISTENTE)
+            if not chk.is_selected():
+                chk.click()
+                self.sb.sleep(2)  # espera re-render del DOM por el checkbox
+            self._click_radio_dinamico(self.BTN_ELIMINAR_BPIN)
+        except Exception:
+            pass  # no habia BPIN previo
+
+        self._click_radio_dinamico(self.BTN_AGREGAR_BPIN)
+
+        self.esperar_visible(f"#{self.INPUT_CODIGO_BPIN}", timeout=DEFAULT_TIMEOUT)
+        campo_bpin = self.driver.find_element("id", self.INPUT_CODIGO_BPIN)
+        campo_bpin.send_keys(bpin)
+        campo_bpin.send_keys(Keys.TAB)  # dispara change/blur para habilitar el combo de año
+        self.driver.execute_script(
+            "arguments[0].dispatchEvent(new Event('change', {bubbles: true}));"
+            "arguments[0].dispatchEvent(new Event('blur', {bubbles: true}));",
+            campo_bpin
+        )
+        self._esperar_desbloqueo_ui()
+
+        anio = anio_bpin if anio_bpin and anio_bpin != 'None' else str(datetime.now().year)
+        self.esperar_presente(f"#{self.SELECT_ANIO_BPIN}", timeout=DEFAULT_TIMEOUT)
+        elemento_combo = self.driver.find_element("id", self.SELECT_ANIO_BPIN)
+        combo_anio = Select(elemento_combo)
+        opciones_anio = [o.get_attribute("value") for o in combo_anio.options]
+        if anio not in opciones_anio:
+            raise Exception(
+                f"La vigencia del BPIN '{anio}' no esta disponible en el combo. Opciones: {opciones_anio}"
+            )
+        combo_anio.select_by_value(anio)
+        self.driver.execute_script(
+            "arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", elemento_combo
+        )
+
+        self._click_radio_dinamico(self.BTN_CONSULTAR_BPIN)
+        try:
+            self._click_radio_dinamico(self.BTN_ACEPTAR_VALIDACION_BPIN)
+            self.esperar_presente(f"#{self.LABEL_ESTADO_BPIN}", timeout=DEFAULT_TIMEOUT)
+            label = self.driver.find_element("id", self.LABEL_ESTADO_BPIN)
+            texto_estado = (label.get_attribute("value") or label.text or "").strip()
+        except Exception:
+            raise Exception("No se ha podido validar el BPIN especificado. Favor verificar")
+
+        # Normaliza acentos sin agregar dependencia nueva (unicodedata es stdlib)
+        texto_normalizado = ''.join(
+            c for c in unicodedata.normalize('NFD', texto_estado) if unicodedata.category(c) != 'Mn'
+        )
+        if "validado" not in texto_normalizado.lower():
+            raise Exception("El BPIN no pudo pasar a 'Validado'. Favor revisar que sea un valor valido")
+
+    def _configurar_cdp_regalias(self, bpin, cdp_regalias, saldo_cdp):
+        """
+        Elimina un CDP de regalias previo si existe, abre el modal SPGR, lo
+        diligencia y luego consulta/valida la integracion.
+
+        El modal (SPGRModal_iframe) usa Selenium raw en vez de sb.* — mismo
+        motivo documentado en _agregar_un_cdp(): self.sb.* reinicia el
+        contexto de frame y rompe las esperas dentro del iframe.
+        """
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait, Select
+        from selenium.webdriver.support import expected_conditions as EC
+
+        # Si ya existe un CDP de regalias agregado, seleccionarlo y eliminarlo.
+        try:
+            chk = self.driver.find_element("id", self.CHK_INTEGRACION_SPGR)
+            if not chk.is_selected():
+                chk.click()
+                self.sb.sleep(2)
+            self._click_radio_dinamico(self.BTN_ELIMINAR_CDP_SPGR)
+        except Exception:
+            pass  # no habia CDP de regalias previo
+
+        self._click_radio_dinamico(self.BTN_AGREGAR_CDP_SPGR)
+
+        # --- Dentro del iframe SPGRModal_iframe: Selenium raw ---
+        WebDriverWait(self.driver, LONG_TIMEOUT).until(
+            EC.frame_to_be_available_and_switch_to_it((By.ID, self.FRAME_CDP_SPGR))
+        )
+        wait = WebDriverWait(self.driver, 20)
+
+        campo_codigo = wait.until(EC.element_to_be_clickable((By.ID, self.INPUT_CODIGO_CDP_SPGR)))
+        campo_codigo.send_keys(cdp_regalias)
+
+        combo_bpin = Select(wait.until(EC.presence_of_element_located((By.ID, self.SELECT_BPIN_EN_CDP))))
+        combo_bpin.select_by_value(str(bpin))
+
+        valor_a_usar = saldo_cdp[0] if saldo_cdp else ""
+        campo_valor = wait.until(EC.element_to_be_clickable((By.ID, self.INPUT_VALOR_A_USAR)))
+        campo_valor.send_keys(str(valor_a_usar))
+
+        btn_crear = wait.until(EC.element_to_be_clickable((By.ID, self.BTN_CREAR_CDP_SPGR)))
+        btn_crear.click()
+
+        self.driver.switch_to.default_content()
+        self.sb.sleep(2)
+        # --- Fin del bloque dentro del iframe ---
+
+        self._consultar_y_validar_spgr()
+
+    def _consultar_y_validar_spgr(self):
+        """
+        Marca el checkbox de integracion SPGR, consulta y valida contra el
+        sistema de regalias.
+
+        Fix de robustez (solicitado explicitamente): en el original, el click
+        de "Validar integracion SPGR" (y su precursor "Consultar SPGR") NO
+        estaban envueltos en try/except — solo los mensajes posteriores lo
+        estaban. Si alguno de esos dos botones no llegaba a generarse a tiempo
+        en el DOM, se propagaba una excepcion cruda de Selenium en vez de un
+        mensaje claro. Aqui ambos clicks quedan protegidos.
+        """
+        try:
+            chk = self.driver.find_element("id", self.CHK_INTEGRACION_SPGR)
+            if not chk.is_selected():
+                chk.click()
+            self.sb.sleep(1)
+        except Exception as e:
+            raise Exception(f"No se pudo marcar el checkbox de integracion SPGR (puede no haberse generado): {e}")
+
+        try:
+            self._click_radio_dinamico(self.BTN_CONSULTAR_SPGR)
+        except Exception as e:
+            raise Exception(f"No se pudo hacer click en 'Consultar SPGR' (el boton puede no haberse generado a tiempo): {e}")
+
+        try:
+            self.sb.wait_for_element_present(self.XPATH_SPGR_CONSULTA_EXITOSA, timeout=15)
+        except Exception:
+            raise Exception("No se valido el CDP: no aparecio el mensaje 'Consulta Exitosa' al consultar SPGR.")
+
+        try:
+            self._click_radio_dinamico(self.BTN_VALIDAR_SPGR)
+        except Exception as e:
+            raise Exception(f"No se pudo hacer click en 'Validar integracion SPGR' (el boton puede no haberse generado a tiempo): {e}")
+
+        try:
+            self.sb.wait_for_element_present(self.XPATH_SPGR_VALIDACION_EXITOSA, timeout=15)
+        except Exception:
+            raise Exception("No se valido la informacion SGR: no aparecio el mensaje 'Informacion SGR validada con exito'.")
 
     def _agregar_cdps(self, codigos_cdp, saldos_cdp, tipo_cdp, valor_estimado):
         """

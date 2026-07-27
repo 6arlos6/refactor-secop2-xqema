@@ -29,7 +29,7 @@ from seleniumbase import SB
 from pages.login_page import LoginPage
 from pages.documentos_page import DocumentosPage
 from pages.publicacion_page import PublicacionPage
-from config.settings import CASO_PRUEBA, NUMERO_CONTRATO_ONBASE, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS, CHROME_ARGS, CHROME_BINARY, PAGE_LOAD_STRATEGY
+from config.settings import CASO_PRUEBA, HEADLESS_MODE, PUBLICAR_SIN_DOCUMENTOS, CHROME_ARGS, CHROME_BINARY, PAGE_LOAD_STRATEGY
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +54,8 @@ def init_repo():
 
 def test_documentos():
     print("=== INICIANDO TEST DOCUMENTOS Y PUBLICACION (PASO 5) ===\n")
+    repo = None
+    fila_excel = 0
     try:
         # 1. Datos desde Google Sheets
         repo, ws_name = init_repo()
@@ -83,16 +85,11 @@ def test_documentos():
             print("ERROR: 'Proceso 4' esta vacio. No se puede navegar al proceso. Debe correr Paso 4 primero.")
             return
 
-        # Numero de contrato para OnBase.
-        # NUMERO_CONTRATO_ONBASE (env) sobreescribe el derivado del nombre del proceso.
-        # Util para testear con un contrato real que tenga documentos en OnBase.
-        if NUMERO_CONTRATO_ONBASE:
-            numero_contrato = NUMERO_CONTRATO_ONBASE
-            print(f"  [OVERRIDE] Usando NUMERO_CONTRATO_ONBASE del env: '{numero_contrato}'")
-        else:
-            numero_contrato = datos['nombre_proceso']
-            if "-" in numero_contrato:
-                numero_contrato = numero_contrato.split("-")[0]
+        # Numero de contrato para OnBase: se deriva siempre de nombre_proceso
+        # partiendo por "-" (igual que hace onbase_page.py internamente).
+        numero_contrato = datos['nombre_proceso']
+        if "-" in numero_contrato:
+            numero_contrato = numero_contrato.split("-")[0]
 
         print(f"Fila {fila_excel}")
         print(f"  Nombre  : '{datos['nombre_proceso']}'")
@@ -160,6 +157,8 @@ def test_documentos():
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
+        if repo and fila_excel:
+            repo.reportar_error(fila_excel, str(e), "Paso 5: Documentos y publicacion")
 
     print("\n=== FIN TEST DOCUMENTOS Y PUBLICACION ===")
 

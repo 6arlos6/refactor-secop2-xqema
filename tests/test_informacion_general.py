@@ -49,6 +49,8 @@ def init_repo():
 
 def test_informacion_general():
     print("=== INICIANDO TEST INFORMACION GENERAL (PASO 2) ===\n")
+    repo = None
+    fila_excel = 0
     try:
         # 1. Datos desde Google Sheets
         repo, config_repo, ws_name = init_repo()
@@ -124,6 +126,8 @@ def test_informacion_general():
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
+        if repo and fila_excel:
+            repo.reportar_error(fila_excel, str(e), "Paso 2: Informacion general")
 
     print("\n=== FIN TEST INFORMACION GENERAL ===")
 

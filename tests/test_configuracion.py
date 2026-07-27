@@ -49,6 +49,8 @@ def init_repo():
 
 def test_configuracion():
     print("=== INICIANDO TEST CONFIGURACION (PASO 3) ===\n")
+    repo = None
+    fila_excel = 0
     try:
         # 1. Datos desde Google Sheets
         repo, ws_name = init_repo()
@@ -123,6 +125,8 @@ def test_configuracion():
         import traceback
         print(f"\nERROR durante el test: {e}")
         traceback.print_exc()
+        if repo and fila_excel:
+            repo.reportar_error(fila_excel, str(e), "Paso 3: Configuracion del proceso")
 
     print("\n=== FIN TEST CONFIGURACION ===")
 

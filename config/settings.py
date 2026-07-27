@@ -70,11 +70,6 @@ if _caso_prueba_env is None:
     print("ADVERTENCIA: CASO_PRUEBA no esta definido en .env. Usando valor por defecto '450014145888-PRUEBA'.")
 CASO_PRUEBA = (_caso_prueba_env or '450014145888-PRUEBA').strip("'\"")
 
-# Override del numero de contrato para OnBase. Cuando esta definido, el test
-# de documentos lo usa en lugar del numero derivado del nombre del proceso.
-# Permite testear la descarga con un contrato real sin cambiar CASO_PRUEBA.
-NUMERO_CONTRATO_ONBASE = os.getenv('NUMERO_CONTRATO_ONBASE', '').strip("'\"")
-
 # HEADLESS_MODE: True → Chrome sin interfaz grafica (compatible desde que se elimino pyautogui).
 HEADLESS_MODE = os.getenv('HEADLESS_MODE', 'False').strip("'\"").lower() == 'true'
 

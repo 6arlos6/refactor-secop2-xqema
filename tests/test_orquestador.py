@@ -51,7 +51,7 @@ from pages.publicacion_page import PublicacionPage
 from config.settings import (
     CASO_PRUEBA, BD_NAME, WORKSHEET_NAME,
     CREDENCIALES_JSON, GOOGLE_SCOPES, HEADLESS_MODE,
-    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST, NUMERO_CONTRATO_ONBASE, CHROME_ARGS, CHROME_BINARY,
+    PUBLICAR_SIN_DOCUMENTOS, N_PASOS_TEST, CHROME_ARGS, CHROME_BINARY,
     PAGE_LOAD_STRATEGY
 )
 
@@ -201,9 +201,15 @@ def test_orquestador():
                 print(f"\n{'─'*60}")
                 print(f"📦 PASO 5/5 — Documentos y publicacion")
                 print(f"{'─'*60}")
+                # Numero de contrato para OnBase: se deriva de nombre_proceso
+                # partiendo por "-" (igual que hace onbase_page.py internamente).
+                numero_contrato = datos['nombre_proceso']
+                if "-" in numero_contrato:
+                    numero_contrato = numero_contrato.split("-")[0]
+
                 url_pub, fecha_pub = documentos_page.adjuntar_y_publicar(
                     url_proceso_4=datos['estado_proceso_4'],
-                    numero_contrato=NUMERO_CONTRATO_ONBASE
+                    numero_contrato=numero_contrato
                 )
                 enlace = publicacion_page.obtener_enlace(url_pub) or url_pub
                 repo.actualizar_celda_por_nombre(fila, 'Proceso 5', enlace)
@@ -238,6 +244,7 @@ def test_orquestador():
         print(f"   {e}")
         print(f"{'='*60}")
         traceback.print_exc()
+        repo.reportar_error(fila, str(e), ExecutionContext.get_step())
 
     print(f"\n🏁 FIN TEST ORQUESTADOR\n")
 

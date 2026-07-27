@@ -17,7 +17,7 @@ Clases y Funciones principales:
    - obtener_registros_pendientes: Descarga todos los registros de la hoja, filtrándolos por estación de trabajo que aún no han sido reportados como ejecutados ('SI').
    - actualizar_celda_por_nombre: Modifica el valor de una celda específica, ubicándola a partir de su número de fila y el nombre de la columna en la cabecera.
    - actualizar_estado_ejecucion: Marca la fila correspondiente como "SI" en la columna 'Ejecutado' para indicar que se procesó con éxito.
-   - reportar_error: Añade un comentario de error en la columna predeterminada de comentarios detallando el paso donde ocurrió el fallo y el mensaje.
+   - reportar_error: Acumula cronológicamente (más reciente arriba, con timestamp) un mensaje de error en la columna 'Log de errores' (o su equivalente legado), detallando el paso donde ocurrió el fallo.
 
 3. ConfigRepository: 
    - Propósito: Proveer métodos para extraer datos de configuración o maestros que se encuentran en otras pestañas auxiliares del documento.
@@ -101,22 +101,36 @@ class ContratosRepository:
         self.actualizar_celda_por_nombre(fila_excel, 'Ejecutado', 'SI')
 
     def reportar_error(self, fila_excel, mensaje_error, paso_fallido="Paso no identificado"):
-        """Reporta un error en la columna de comentarios y pinta la fila de rojo."""
+        """
+        Acumula el error cronologicamente (mas reciente arriba, con timestamp) en
+        la columna 'Log de errores', en vez de sobrescribir el valor anterior.
+
+        Inspirado en agregar_observacion_con_historial() de automation-gt-contracts-v2-udea-main.
+        Busca 'Log de errores' primero; si la hoja aun no la tiene, cae a los
+        nombres de columna previos ('Comentarios'/'Observaciones'/'Errores') por
+        compatibilidad hacia atras.
+        """
+        from datetime import datetime
+
         mensaje_completo = f"FALLO EN [{paso_fallido}] -> {mensaje_error}"
         print(f"Error en fila {fila_excel}: {mensaje_completo}")
 
-        # Buscar la columna de comentarios/errores (columna X en el original)
-        # Intentamos encontrarla por diferentes nombres posibles
-        for nombre_col in ['Comentarios', 'Observaciones', 'Errores']:
-            if nombre_col in self.mapa_columnas:
-                self.actualizar_celda_por_nombre(fila_excel, nombre_col, mensaje_completo)
-                return
+        nombre_col = next(
+            (c for c in ['Log de errores', 'Comentarios', 'Observaciones', 'Errores'] if c in self.mapa_columnas),
+            None
+        )
+        if not nombre_col:
+            print("  [AVISO] No se encontro columna de log de errores en la hoja. Error no persistido.")
+            return
 
-        # Si no encontramos columna con nombre conocido, usamos la posicion relativa
-        # En el original era la columna X (posicion 24)
-        col_errores = self.mapa_columnas.get('Comentarios') or 24
-        if isinstance(col_errores, int):
-            self.sheet.update_cell(fila_excel, col_errores, mensaje_completo)
+        numero_columna = self.mapa_columnas[nombre_col]
+        timestamp = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+        mensaje_con_fecha = f"[{timestamp}] - {mensaje_completo}"
+
+        valor_previo = (self.sheet.cell(fila_excel, numero_columna).value or "").strip()
+        texto_final = f"{mensaje_con_fecha}\n{valor_previo}" if valor_previo else mensaje_con_fecha
+
+        self.sheet.update_cell(fila_excel, numero_columna, texto_final)
 
 
 # =========================================================================
