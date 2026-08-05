@@ -16,7 +16,7 @@ Clases y Funciones principales:
    - __init__: Vincula el repositorio a una hoja específica y crea un mapa de las columnas para fácil acceso.
    - obtener_registros_pendientes: Descarga todos los registros de la hoja, filtrándolos por estación de trabajo que aún no han sido reportados como ejecutados ('SI').
    - actualizar_celda_por_nombre: Modifica el valor de una celda específica, ubicándola a partir de su número de fila y el nombre de la columna en la cabecera.
-   - actualizar_estado_ejecucion: Marca la fila correspondiente como "SI" en la columna 'Ejecutado' para indicar que se procesó con éxito.
+   - actualizar_estado_ejecucion: Marca la fila correspondiente como "SI" en la columna 'Ejecutado' para indicar que el procesamiento finalizó, ya sea con éxito o con error.
    - reportar_error: Acumula cronológicamente (más reciente arriba, con timestamp) un mensaje de error en la columna 'Log de errores' (o su equivalente legado), detallando el paso donde ocurrió el fallo.
 
 3. ConfigRepository: 
@@ -97,7 +97,11 @@ class ContratosRepository:
         self.sheet.update_cell(fila_excel, numero_columna, valor)
 
     def actualizar_estado_ejecucion(self, fila_excel):
-        """Marca la fila como ejecutada."""
+        """
+        Marca la fila como ejecutada (finalizada), sin importar si termino con
+        exito o con error. Evita que quede reintentandose indefinidamente; el
+        detalle del fallo, si lo hubo, queda en la columna de log de errores.
+        """
         self.actualizar_celda_por_nombre(fila_excel, 'Ejecutado', 'SI')
 
     def reportar_error(self, fila_excel, mensaje_error, paso_fallido="Paso no identificado"):

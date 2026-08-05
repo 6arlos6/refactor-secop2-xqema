@@ -1,9 +1,0 @@
-﻿Librerías necesarias:
-
-pip install selenium 
-pip install gspread
-pip install oauth2client
-pip install gspread-formatting
-pip install pwinput
-
-Recomendaciones:

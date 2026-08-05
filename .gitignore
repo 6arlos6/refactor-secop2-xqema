@@ -1,8 +1,11 @@
 documentos/
 .env
-__pycache__/funciones.cpython-311.pyc
-__pycache__/globales.cpython-311.pyc
+__pycache__/
+*.pyc
 client_sheet.json
 venv/
 /venv/
 .claude
+build/
+dist/
+*.spec
